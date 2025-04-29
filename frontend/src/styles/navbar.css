@@ -1,0 +1,71 @@
+.custom-navbar{
+    height:80px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    
+}
+.upload-pdf{
+    background-color:white;
+    padding: 6px 29px;
+    border-radius: 6px;
+    transition: 0.3s ease;
+
+
+}
+.upload-pdf:hover{
+    background-color: black;
+    color: white;
+    border-color: black;
+}
+.file-name{
+    color: greenyellow;
+}
+.spinner {
+    border: 2px solid #f3f3f3; /* Light grey */
+    border-top: 2px solid #34db85; /* Blue */
+    border-radius: 50%;
+    width: 15px;
+    height: 15px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 20px;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @media (max-width: 600px) {
+    button{
+        padding: 0;
+    }
+  
+    button .icon {
+      display: inline-block; 
+    }
+  
+    button .text {
+      display: none; 
+    }
+    .file-name {
+        max-width: 90px;         /* Adjust as needed */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+        vertical-align: middle;
+    }
+  }
+
+  @media (min-width: 600px) and (max-width: 1024px) {
+    .file-name {
+        max-width: 160px;         /* Adjust as needed */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: inline-block;
+        vertical-align: middle;
+    }
+    
+    
+  }
