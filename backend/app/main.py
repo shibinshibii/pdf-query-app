@@ -18,7 +18,7 @@ app = FastAPI()
 # Add CORS middleware to allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://pdf-query-app-delta.vercel.app/"],  # Allowed origin
+    allow_origins=["https://pdf-query-app-delta.vercel.app"],  # Allowed origin
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
     allow_headers=["*"],  # Allow all headers
