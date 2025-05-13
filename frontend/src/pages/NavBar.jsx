@@ -57,6 +57,8 @@ function NavBar({ setUploadedFileName }) {
     setUploadedFileName(""); // Clear the parent component's state
     fileInputRef.current.value = null; // Reset the file input field
     localStorage.removeItem("uploadedFileName"); // Remove the file name from localStorage
+    localStorage.removeItem(`chatHistory_${uploadedFileName}`);
+
   };
 
   return (
