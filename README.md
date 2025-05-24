@@ -1,4 +1,5 @@
 Live Demo:- https://pdf-query-app-delta.vercel.app/
+
 PDF Query App
 
 A full-stack web application for uploading PDF documents and asking questions about their content using AI. Built with a FastAPI backend, React frontend, and powered by Google Gemini for natural language processing, this app allows users to upload PDFs, index their content, and query them interactively with a chat-like interface.
