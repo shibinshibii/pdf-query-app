@@ -130,10 +130,4 @@ Commit changes (git commit -m "Add your feature").
 Push to the branch (git push origin feature/your-feature).
 Open a pull request.
 
-License
-MIT License. See LICENSE for details.
-Acknowledgments
-
-Built for the AI Planet Frontend Developer Task.
-Powered by Google Gemini and LlamaIndex.
 
