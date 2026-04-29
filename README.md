@@ -19,7 +19,7 @@ Tech Stack
 
 Frontend: React, Axios
 
-Backend: FastAPI, LlamaIndex, Gemini API (gemini-1.5-flash, embedding-001)
+Backend: FastAPI, LlamaIndex, Gemini API (gemini-2.5-flash, gemini-embedding-2)
 
 Database: SQLite
 
@@ -48,39 +48,53 @@ cd pdf-query-app
 
 Backend Setup:
 
-Navigate to the backend directory:cd backend
+Navigate to the backend directory:
+```bash
+cd backend
+```
 
-
-Create a virtual environment and install dependencies:python -m venv venv
-
+Create a virtual environment and install dependencies:
+```bash
+python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-
 pip install -r requirements.txt
+```
 
-
-Create a .env file in backend/:GOOGLE_API_KEY=your_api_key
-
+Create a `.env` file in `backend/` (you can copy `.env.example`):
+```env
 DATABASE_URL=sqlite:///./pdf_documents.db
+GOOGLE_API_KEY=your_api_key
+ALLOWED_ORIGINS=http://localhost:5173
+```
 
-
-Run the FastAPI server:uvicorn main:app --reload
-
+Run the FastAPI server:
+```bash
+uvicorn app.main:app --reload
+```
 
 Backend runs at http://127.0.0.1:8000.
 
-
 Frontend Setup:
 
-Navigate to the frontend directory:cd frontend
+Navigate to the frontend directory:
+```bash
+cd frontend
+```
 
+Install dependencies:
+```bash
+npm install
+```
 
-Install dependencies:npm install
+Create a `.env` file in `frontend/` (you can copy `.env.example`):
+```env
+VITE_API_URL=http://127.0.0.1:8000
+```
 
-
-Create a .env file in frontend/:VITE_API_URL=http://127.0.0.1:8000
-
-
-Run the React app:npm start
+Run the React app:
+```bash
+npm run dev
+```
 
 
 Frontend runs at http://localhost:5173.

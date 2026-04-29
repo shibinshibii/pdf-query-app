@@ -1,16 +1,23 @@
+import os
+from dotenv import load_dotenv
 from databases import Database  # Importing the Database class for async database operations
 from sqlalchemy import create_engine  # Importing create_engine to create a database engine
 from sqlalchemy.orm import sessionmaker  # Importing sessionmaker to create database sessions
 from .models import Base  # Importing the Base class from models to define database tables
 
-# Database connection URL for SQLite
-SQLALCHEMY_DATABASE_URL = "sqlite:///./pdf_documents.db"
+load_dotenv()
+
+# Database connection URL, defaulting to local SQLite if not provided in environment
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pdf_documents.db")
 
 # Creating an async database instance
 database = Database(SQLALCHEMY_DATABASE_URL)
 
+# Ensure thread-safety arguments are only passed to sqlite databases
+connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
+
 # Creating a synchronous SQLAlchemy engine for database operations
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
 
 # Creating a session factory for database sessions
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

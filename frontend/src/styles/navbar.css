@@ -1,71 +1,150 @@
-.custom-navbar{
-    height:80px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
-    
+.custom-navbar {
+    height: 72px;
+    transition: all 0.3s ease;
 }
-.upload-pdf{
-    background-color:white;
-    padding: 6px 29px;
-    border-radius: 6px;
-    transition: 0.3s ease;
 
-
+.brand-logo {
+    background: linear-gradient(135deg, var(--primary), #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-size: 1.5rem;
 }
-.upload-pdf:hover{
-    background-color: black;
+
+.brand-text {
+    font-size: 1.25rem;
+    color: var(--text-main);
+}
+
+.file-display {
+    background: var(--bg-card);
+    padding: 6px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    margin-right: 12px;
+}
+
+.file-name-text {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    max-width: 150px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.preview-link {
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.preview-link:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.confirm-badge {
+    display: flex;
+    align-items: center;
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 2px 10px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+}
+
+[data-theme='dark'] .confirm-badge {
+    background: #450a0a;
+    color: #fecaca;
+}
+
+.btn-yes {
+    background: none;
+    border: none;
+    color: #dc2626;
+    font-weight: 700;
+    padding: 0 4px;
+}
+
+.btn-no {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 0 4px;
+}
+
+.divider {
+    color: #fca5a5;
+    margin: 0 2px;
+}
+
+.remove-icon {
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.remove-icon:hover {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
+.upload-btn {
+    border-radius: 10px;
+    font-weight: 600;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    border: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary {
+    background: var(--primary);
     color: white;
-    border-color: black;
 }
-.file-name{
-    color: greenyellow;
-}
-.spinner {
-    border: 2px solid #f3f3f3; /* Light grey */
-    border-top: 2px solid #34db85; /* Blue */
-    border-radius: 50%;
-    width: 15px;
-    height: 15px;
-    animation: spin 1s linear infinite;
-    display: inline-block;
-    margin-right: 20px;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  @media (max-width: 600px) {
-    button{
-        padding: 0;
-    }
-  
-    button .icon {
-      display: inline-block; 
-    }
-  
-    button .text {
-      display: none; 
-    }
-    .file-name {
-        max-width: 90px;         /* Adjust as needed */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: inline-block;
-        vertical-align: middle;
-    }
-  }
 
-  @media (min-width: 600px) and (max-width: 1024px) {
-    .file-name {
-        max-width: 160px;         /* Adjust as needed */
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: inline-block;
-        vertical-align: middle;
+.btn-primary:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+    background: var(--bg-card);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    background: var(--bg-main);
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-top: 2px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .custom-navbar {
+        height: 64px;
     }
-    
-    
-  }
+    .file-name-text {
+        max-width: 80px;
+        font-size: 0.75rem;
+    }
+    .file-display {
+        padding: 4px 8px;
+        margin-right: 8px;
+    }
+}

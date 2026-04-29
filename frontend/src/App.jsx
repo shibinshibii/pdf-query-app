@@ -14,10 +14,13 @@ function App() {
       localStorage.setItem("uploadedFileName", uploadedFileName);
     }
   }, [uploadedFileName]);
+
   return (
     <>
       {/* Render the NavBar component and pass the setUploadedFileName function as a prop */}
-      <NavBar setUploadedFileName={setUploadedFileName} />
+      <NavBar 
+        setUploadedFileName={setUploadedFileName} 
+      />
 
       {/* Render the AskQuestion component and pass the uploadedFileName state as a prop */}
       <AskQuestion uploadedFileName={uploadedFileName} />

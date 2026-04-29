@@ -29,7 +29,7 @@ def create_index_for_pdf(file_path):
     try:
         # Configure the embedding model using GeminiEmbedding
         Settings.embed_model = GeminiEmbedding(
-            model_name="models/embedding-001",  # Specify the model name
+            model_name="models/gemini-embedding-2",  # Specify the model name
             api_key=os.getenv("GOOGLE_API_KEY")  # Retrieve API key from environment variables
         )
         # Create a vector store index from the loaded documents
@@ -75,7 +75,7 @@ def initialize_llm():
         )
         # Configure the Gemini LLM with specific parameters
         llm = Gemini(
-            model_name="models/gemini-1.5-flash",  # Specify the model name
+            model_name="models/gemini-2.5-flash",  # Specify the model name
             api_key=os.getenv("GOOGLE_API_KEY"),  # Retrieve API key from environment variables
             temperature=0.5,  # Set the temperature for response variability
             max_tokens=256,  # Limit the maximum number of tokens in the response

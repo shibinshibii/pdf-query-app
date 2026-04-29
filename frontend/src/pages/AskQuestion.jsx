@@ -1,102 +1,127 @@
 import "../styles/askquestion.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FiSend } from "react-icons/fi";
+import { FiSend, FiFileText, FiCpu, FiInfo, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import React, { useState, useEffect, useRef } from "react";
-import { FaUserCircle } from "react-icons/fa"; // User icon
-import { GiArtificialIntelligence } from "react-icons/gi"; // AI Icon
-import { FaTrashAlt } from 'react-icons/fa';
+import { FaUserCircle, FaRobot, FaTrashAlt } from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from 'react-markdown';
 import api from "../api";
 
+// Simple Session ID generator (Guest Session)
+const getSessionId = () => {
+  let sessionId = localStorage.getItem("guest_session_id");
+  if (!sessionId) {
+    // Fallback to random string if crypto.randomUUID is not available
+    sessionId = typeof crypto.randomUUID === 'function' 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem("guest_session_id", sessionId);
+  }
+  return sessionId;
+};
+
 function AskQuestion({ uploadedFileName }) {
-  const [question, setQuestion] = useState("");   // State to store the user's question
-  const [chatHistory, setChatHistory] = useState([]);   // State to store the chat history (array of question-answer pairs)
-  const endOfChatRef = useRef(null); // Reference to scroll to the last message
+  const [question, setQuestion] = useState("");
+  const [chatHistory, setChatHistory] = useState([]);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [expandedSources, setExpandedSources] = useState({}); // Track which message sources are expanded
+  const endOfChatRef = useRef(null);
+  const sessionId = getSessionId();
   
-  // Load chat history when component mounts or filename changes
+  // Load chat history from BACKEND
   useEffect(() => {
-    if (uploadedFileName) {
-      try {
-        const savedChat = localStorage.getItem(`chatHistory_${uploadedFileName}`);
-        if (savedChat) {
-          setChatHistory(JSON.parse(savedChat));
-        } else {
-          setChatHistory([]);  // Reset when switching to a new file
+    const fetchHistory = async () => {
+      if (uploadedFileName) {
+        try {
+          const response = await api.get(`/history/${uploadedFileName}`, {
+            params: { session_id: sessionId }
+          });
+          setChatHistory(response.data);
+        } catch (error) {
+          console.error("Error loading chat history:", error);
+          toast.error("Failed to load chat history");
         }
-      } catch (error) {
-        console.error("Error loading chat history:", error);
+      } else {
         setChatHistory([]);
       }
-    }
-  }, [uploadedFileName]);
-
-  // Save chat history whenever it changes
-  useEffect(() => {
-    if (uploadedFileName && chatHistory.length > 0) {
-      try {
-        localStorage.setItem(`chatHistory_${uploadedFileName}`, JSON.stringify(chatHistory));
-      } catch (error) {
-        console.error("Error saving chat history:", error);
-        toast.error("Failed to save chat history");
-      }
-    }
+    };
     
-    // Scroll to the end of chat
+    fetchHistory();
+  }, [uploadedFileName, sessionId]);
+
+  useEffect(() => {
     if (endOfChatRef.current) {
       endOfChatRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chatHistory, uploadedFileName]);
+  }, [chatHistory]);
+
+  const toggleSources = (index) => {
+    setExpandedSources(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
 
   const handleAsk = async () => {
-    if (!question.trim()) {
-      toast.error("Question cannot be empty");
-      return;
-    }
+    if (!question.trim()) return;
     if (!uploadedFileName) {
-      toast.error("No file uploaded");
+      toast.error("Please upload a PDF first");
       return;
     }
-    const currentQuestion = question; // Store the current question
-    setQuestion(""); // Clear the input field
 
+    const currentQuestion = question;
+    setQuestion("");
+
+    // Add user message to UI immediately
     setChatHistory((prevHistory) => [
       ...prevHistory,
-      { question: currentQuestion, answer: null },
-    ]);   // Add the question to chat history with a placeholder for the answer
-
-    const payload = { filename: uploadedFileName, question: currentQuestion }; // Prepare the payload for the API request
+      { question: currentQuestion, answer: null, sources: [] },
+    ]);
 
     try {
-      const response = await api.post("/ask/", payload); // Send the question to the backend API
-      const answer = response.data.answer; // Extract the answer from the response
-    
-      // Update the chat history with the received answer
+      const response = await api.post("/ask/", { 
+        filename: uploadedFileName, 
+        question: currentQuestion,
+        session_id: sessionId
+      });
+      
       setChatHistory((prevHistory) => {
         const updatedHistory = [...prevHistory];
-        updatedHistory[updatedHistory.length - 1].answer = answer; // Add the answer to the last question
+        const lastIndex = updatedHistory.length - 1;
+        updatedHistory[lastIndex].answer = response.data.answer;
+        updatedHistory[lastIndex].sources = response.data.sources || [];
         return updatedHistory;
       });
     } catch (error) {
       console.error("Error asking question:", error);
-      const errorMsg = error.response?.data?.detail || "Request failed";
-      toast.error(errorMsg); // Show error toast
+      const errorMsg = error.response?.data?.detail || "AI failed to respond";
+      toast.error(errorMsg);
 
-      // Update the chat history with the error message
       setChatHistory((prevHistory) => {
         const updatedHistory = [...prevHistory];
-        updatedHistory[updatedHistory.length - 1].answer = <i>No Response</i>;
+        updatedHistory[updatedHistory.length - 1].answer = (
+          <span className="text-danger">Sorry, I encountered an error. Please try again.</span>
+        );
         return updatedHistory;
       });
     }
   };
 
-  // For clearing chat
-  const handleClearChat = () => {
-    setChatHistory([]);
-    localStorage.removeItem(`chatHistory_${uploadedFileName}`);
+  const handleClearChat = async () => {
+    try {
+      await api.delete(`/history/${uploadedFileName}`, {
+        params: { session_id: sessionId }
+      });
+      setChatHistory([]);
+      setShowClearConfirm(false);
+      toast.success("Chat history cleared");
+    } catch (error) {
+      console.error("Error clearing history:", error);
+      toast.error("Failed to clear history");
+    }
   };
 
-  // Handle Enter key press to submit questions
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -106,59 +131,175 @@ function AskQuestion({ uploadedFileName }) {
 
   return (
     <div className="ask-container">
-      {/* Render the chat history */}
-      {chatHistory.map((chat, index) => (
-        <div className="chat-container" key={index}>
-          <div className="question-container">
-            <FaUserCircle style={{ fontSize: "35px" }} />
-            <div className="question">{chat.question}</div>
-          </div>
-          <div className="answer-container">
-            <GiArtificialIntelligence style={{ fontSize: "35px" }} />
-            <div className="answer">
-              {chat.answer === null ? (
-                <span className="loader">Loading...</span> // Placeholder while waiting for the answer
-              ) : (
-                chat.answer // Display the answer
-              )}
+      <div className="chat-main">
+        <AnimatePresence mode="wait">
+          {!uploadedFileName ? (
+            <motion.div 
+              key="no-file"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="empty-state-card"
+            >
+              <div className="icon-circle">
+                <FiFileText size={40} />
+              </div>
+              <h2>Ready to analyze</h2>
+              <p>Upload a PDF document to start an interactive conversation with AI about its content.</p>
+            </motion.div>
+          ) : chatHistory.length === 0 ? (
+            <motion.div 
+              key="empty-chat"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="empty-state-card"
+            >
+              <div className="icon-circle ai">
+                <FiCpu size={40} />
+              </div>
+              <h2>PDF Indexed Successfully</h2>
+              <p>The document is ready. Ask me anything! For example: "What are the key takeaways?"</p>
+            </motion.div>
+          ) : (
+            <div className="messages-list">
+              {chatHistory.map((chat, index) => (
+                <div key={index} className="message-group">
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="message-row user"
+                  >
+                    <div className="bubble user">
+                      {chat.question}
+                    </div>
+                    <div className="avatar user">
+                      <FaUserCircle />
+                    </div>
+                  </motion.div>
+
+                  <motion.div 
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="message-row ai"
+                  >
+                    <div className="avatar ai">
+                      <FaRobot />
+                    </div>
+                    <div className="bubble ai">
+                      {chat.answer === null ? (
+                        <div className="ai-loading">
+                          <span className="dot"></span>
+                          <span className="dot"></span>
+                          <span className="dot"></span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="ai-text">
+                            {typeof chat.answer === 'string' ? (
+                              <ReactMarkdown>{chat.answer}</ReactMarkdown>
+                            ) : (
+                              chat.answer
+                            )}
+                          </div>
+                          
+                          {chat.sources && chat.sources.length > 0 && (
+                            <div className="sources-container">
+                              <button 
+                                className="sources-toggle"
+                                onClick={() => toggleSources(index)}
+                              >
+                                <FiInfo size={14} />
+                                <span>{chat.sources.length} Source{chat.sources.length > 1 ? 's' : ''}</span>
+                                {expandedSources[index] ? <FiChevronUp /> : <FiChevronDown />}
+                              </button>
+                              
+                              <AnimatePresence>
+                                {expandedSources[index] && (
+                                  <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="sources-list"
+                                  >
+                                    {chat.sources.map((source, sIdx) => (
+                                      <div key={sIdx} className="source-item">
+                                        <span className="source-page">Page {source.page}</span>
+                                        <p className="source-text">"{source.text}"</p>
+                                      </div>
+                                    ))}
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </motion.div>
+                </div>
+              ))}
+              <div ref={endOfChatRef} />
             </div>
+          )}
+        </AnimatePresence>
+      </div>
+      
+      <div className="input-wrapper">
+        <div className="input-box glass">
+          <textarea
+            rows="1"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder={uploadedFileName ? "Message PDF Reviewer..." : "Upload a PDF to start chatting"}
+            disabled={!uploadedFileName}
+          />
+          
+          <div className="actions">
+            <AnimatePresence mode="wait">
+              {showClearConfirm ? (
+                <motion.div 
+                  key="confirm"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="clear-confirm-pill"
+                >
+                  <span onClick={handleClearChat} className="confirm-yes">Clear?</span>
+                  <span onClick={() => setShowClearConfirm(false)} className="confirm-no">No</span>
+                </motion.div>
+              ) : (
+                <motion.button 
+                  key="trash"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="icon-btn delete" 
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={chatHistory.length === 0}
+                  title="Clear Conversation"
+                >
+                  <FaTrashAlt />
+                </motion.button>
+              )}
+            </AnimatePresence>
+            <button
+              className="send-btn-round"
+              onClick={handleAsk}
+              disabled={!uploadedFileName || !question.trim()}
+              title="Send Message"
+            >
+              <FiSend />
+            </button>
           </div>
         </div>
-      ))}
-
-      {/* Empty div for auto-scrolling */}
-      <div ref={endOfChatRef} style={{ paddingBottom: "50px" }}></div>
-      
-      {/* Input field and send button */}
-      <div className="input-container">
-        <input
-          type="text"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyPress={handleKeyPress}
-          className="input"
-          placeholder="Type a message"
-        />
-        <button 
-          title="Clear chat" 
-          className="delete-btn" 
-          onClick={handleClearChat}
-        >
-          <FaTrashAlt/>
-        </button>
-        <button
-          onClick={handleAsk}
-          disabled={!uploadedFileName}
-          className="send-btn"
-        >
-          <FiSend />
-        </button>
       </div>
 
-      {/* Toast container for notifications */}
-      <ToastContainer position="bottom-right" autoClose={3000} />
+      <ToastContainer theme="colored" position="bottom-right" autoClose={3000} />
     </div>
   );
 }
 
-export default AskQuestion;
+export default AskQuestion;
