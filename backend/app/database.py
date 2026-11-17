@@ -10,6 +10,13 @@ load_dotenv()
 # Database connection URL, defaulting to local SQLite if not provided in environment
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pdf_documents.db")
 
+# Ensure directory exists if SQLite path has subdirectories (e.g. ./data/pdf_documents.db)
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite:///"):
+    db_file_path = SQLALCHEMY_DATABASE_URL.replace("sqlite:///", "")
+    db_dir = os.path.dirname(db_file_path)
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
+
 # Creating an async database instance
 database = Database(SQLALCHEMY_DATABASE_URL)
 

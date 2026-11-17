@@ -12,13 +12,15 @@ Powered by **FastAPI**, **React 19**, **LlamaIndex**, and **Google Gemini 2.5 Fl
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Google Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-8E75C2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
 [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-0.12-FF4B4B?style=for-the-badge)](https://www.llamaindex.ai/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 
 ---
 
 [Explore Features](#-key-features) •
 [System Architecture](#-system-architecture) •
 [API Reference](#-api-endpoints) •
-[Quickstart](#-quickstart-guide) •
+[Docker Setup](#-docker-setup-recommended) •
+[Quickstart](#-manual-quickstart-guide) •
 [Environment Variables](#-environment-variables)
 
 </div>
@@ -119,7 +121,40 @@ graph TD
 
 ---
 
-## 🚀 Quickstart Guide
+## 🐳 Docker Setup (Recommended)
+
+Run the entire full-stack application (FastAPI backend + Nginx-served React frontend) with a single command.
+
+### 1. Set Your Gemini API Key
+Create a `.env` file at the project root (copied from [.env.example](file:///.env.example)):
+```bash
+cp .env.example .env
+```
+Add your key inside `.env`:
+```env
+GOOGLE_API_KEY=AIzaSy...
+```
+
+### 2. Run with Docker Compose
+```bash
+# Build and run backend and frontend
+docker compose up --build
+```
+- **Frontend**: http://localhost:5173
+- **Backend API & Swagger Docs**: http://localhost:8000/docs
+
+> [!NOTE]
+> Uploaded PDFs, generated vector indexes, and SQLite chat history are persisted in named Docker volumes (`backend_uploads`, `backend_indexes`, and `backend_data`).
+
+### 🛠️ Development Mode with Hot-Reloading
+If you are developing and want live code changes reflected instantly without rebuilding images:
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+---
+
+## 🚀 Manual Quickstart Guide
 
 ### 1. Prerequisites
 

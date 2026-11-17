@@ -1,0 +1,16 @@
+__pycache__
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+.git
+.gitignore
+uploads/
+indexes/
+data/
+pdf_documents.db
+*.sqlite3
+*.db
+*.log
+

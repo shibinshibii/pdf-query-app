@@ -1,0 +1,37 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pdf-reviewer-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DATABASE_URL=sqlite:///./data/pdf_documents.db
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:80,http://127.0.0.1:5173,http://127.0.0.1:80
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_indexes:/app/indexes
+      - backend_data:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - VITE_API_URL=http://localhost:8000
+    container_name: pdf-reviewer-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_uploads:
+  backend_indexes:
+  backend_data:
+

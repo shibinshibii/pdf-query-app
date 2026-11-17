@@ -1,0 +1,42 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pdf-reviewer-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DATABASE_URL=sqlite:///./data/pdf_documents.db
+      - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+    volumes:
+      - ./backend/app:/app/app
+      - backend_uploads_dev:/app/uploads
+      - backend_indexes_dev:/app/indexes
+      - backend_data_dev:/app/data
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: dev
+    container_name: pdf-reviewer-frontend-dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_uploads_dev:
+  backend_indexes_dev:
+  backend_data_dev:
+
