@@ -5,7 +5,7 @@ import { FiFile } from "react-icons/fi";
 import { AiOutlineUpload } from "react-icons/ai";
 import { RiEdit2Fill } from "react-icons/ri";
 import { motion, AnimatePresence } from "framer-motion";
-import api from "../api";
+import api, { API_BASE_URL } from "../api";
 import PreviewModal from "../components/PreviewModal";
 
 function NavBar({ setUploadedFileName }) {
@@ -150,7 +150,7 @@ function NavBar({ setUploadedFileName }) {
       <PreviewModal 
         isOpen={showPreview} 
         onClose={() => setShowPreview(false)} 
-        fileUrl={`${import.meta.env.VITE_API_URL}/uploads/${fileName}`}
+        fileUrl={`${API_BASE_URL}/uploads/${fileName}`}
         fileName={fileName}
       />
     </div>

@@ -1,0 +1,9 @@
+thumbnails/
+uploads/
+*.png
+*.jpg
+*.webp
+*.pdf
+preprocessor
+.git
+

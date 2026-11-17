@@ -12,6 +12,7 @@ Powered by **FastAPI**, **React 19**, **LlamaIndex**, and **Google Gemini 2.5 Fl
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Google Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-8E75C2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
 [![LlamaIndex](https://img.shields.io/badge/LlamaIndex-0.12-FF4B4B?style=for-the-badge)](https://www.llamaindex.ai/)
+[![Go](https://img.shields.io/badge/Go_1.23-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
 
 ---
@@ -38,6 +39,7 @@ Instead of generic responses or hallucinations, the application uses **Retrieval
 ## ✨ Key Features
 
 - **⚡ Asynchronous Ingestion & Indexing**: PDF parsing and semantic embedding run in FastAPI background workers, keeping the UI instantaneous.
+- **🖼️ Go Microservice for Thumbnails**: Dedicated Go microservice generates scaled page thumbnails and SHA-256 deduplication hashes in parallel using Poppler and goroutines.
 - **🧠 Semantic Vector Search**: Powered by `models/gemini-embedding-2` and LlamaIndex for high-accuracy similarity matching beyond keyword searches.
 - **📑 Source Citations & Attribution**: Every answer provides collapsible source cards showing the exact page number and text snippet retrieved.
 - **👁️ Live PDF Previewer**: Built-in modal viewer allows side-by-side reading of the original document while chatting.
@@ -101,6 +103,7 @@ graph TD
 | **Styling & UI** | Framer Motion, Bootstrap 5, React Icons | Smooth animations, layout, and visual feedback |
 | **Markdown** | React Markdown | Formatted rendering of AI answers |
 | **Backend** | FastAPI, Uvicorn | High-performance Python async web framework |
+| **Preprocessor** | Go 1.23, Poppler | Concurrent page thumbnail generation & SHA-256 deduplication |
 | **LLM & RAG** | LlamaIndex, Google Gemini API | `gemini-2.5-flash` (LLM) & `gemini-embedding-2` (Embeddings) |
 | **PDF Extraction** | PyMuPDF, pypdf | Fast PDF text parsing and page metadata extraction |
 | **Database** | SQLite, SQLAlchemy 2.0, Databases | Asynchronous database operations for document & chat history |

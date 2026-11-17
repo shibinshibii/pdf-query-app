@@ -10,12 +10,26 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - DATABASE_URL=sqlite:///./data/pdf_documents.db
       - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - PREPROCESSOR_URL=http://preprocessor:8001
+      - PREPROCESSOR_PUBLIC_URL=http://localhost:8001
     volumes:
       - ./backend/app:/app/app
       - backend_uploads_dev:/app/uploads
       - backend_indexes_dev:/app/indexes
       - backend_data_dev:/app/data
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+
+  preprocessor:
+    build:
+      context: ./preprocessor
+      dockerfile: Dockerfile
+    container_name: pdf-reviewer-preprocessor-dev
+    ports:
+      - "8001:8001"
+    volumes:
+      - backend_uploads_dev:/uploads:ro
+      - preprocessor_thumbnails_dev:/thumbnails
     restart: unless-stopped
 
   frontend:
@@ -33,10 +47,11 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+      - preprocessor
     restart: unless-stopped
 
 volumes:
   backend_uploads_dev:
   backend_indexes_dev:
   backend_data_dev:
-
+  preprocessor_thumbnails_dev:

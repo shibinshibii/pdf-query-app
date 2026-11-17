@@ -13,6 +13,8 @@ from llama_index.core.prompts import PromptTemplate  # For creating custom promp
 import os  # For file and directory operations
 import re  # For sanitizing filenames
 import json  # For JSON operations
+import urllib.request
+import urllib.parse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -49,6 +51,17 @@ def read_root():
 # Utility function to sanitize filenames by replacing invalid characters
 def sanitize_filename(filename):
     return re.sub(r'[^a-zA-Z0-9.\-]', '_', filename)
+
+def trigger_preprocessor(filename: str):
+    """Notify the Go preprocessor service to extract metadata and render thumbnails."""
+    preprocessor_url = os.getenv("PREPROCESSOR_URL", "http://localhost:8001")
+    try:
+        url = f"{preprocessor_url}/api/preprocess?filename={urllib.parse.quote(filename)}"
+        req = urllib.request.Request(url, method="POST")
+        with urllib.request.urlopen(req, timeout=5):
+            pass
+    except Exception as e:
+        print(f"[Preprocessor Notice] Could not trigger preprocessor: {e}")
 
 # Pydantic model for validating the request body of the /ask/ endpoint
 class AskRequest(BaseModel):
@@ -95,6 +108,7 @@ async def upload_pdf(file: UploadFile, background_tasks: BackgroundTasks):
     # Add a background task to create an index for the uploaded PDF
     try:
         background_tasks.add_task(create_index_for_pdf, file_path)
+        background_tasks.add_task(trigger_preprocessor, sanitized_filename)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create index: {str(e)}")
 
@@ -141,12 +155,17 @@ async def ask_question(request: AskRequest):
         response = query_engine.query(request.question)
         
         # Extract sources from the response
+        preprocessor_public_url = os.getenv("PREPROCESSOR_PUBLIC_URL", "http://localhost:8001")
         sources = []
         for node in response.source_nodes:
-            sources.append({
+            page = node.node.metadata.get("page_label", "N/A")
+            source_item = {
                 "text": node.node.get_content()[:200] + "...",
-                "page": node.node.metadata.get("page_label", "N/A")
-            })
+                "page": page
+            }
+            if page != "N/A":
+                source_item["thumbnail"] = f"{preprocessor_public_url}/thumbnails/{sanitized_filename}/page-{page}.png"
+            sources.append(source_item)
 
         # Save the interaction to the database
         db: Session = SessionLocal()

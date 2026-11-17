@@ -225,8 +225,29 @@ function AskQuestion({ uploadedFileName }) {
                                   >
                                     {chat.sources.map((source, sIdx) => (
                                       <div key={sIdx} className="source-item">
-                                        <span className="source-page">Page {source.page}</span>
-                                        <p className="source-text">"{source.text}"</p>
+                                        <div className="source-header">
+                                          <span className="source-page">Page {source.page}</span>
+                                        </div>
+                                        <div className="source-body">
+                                          {source.thumbnail && (
+                                            <a 
+                                              href={source.thumbnail} 
+                                              target="_blank" 
+                                              rel="noopener noreferrer" 
+                                              title={`View Page ${source.page} Snapshot`}
+                                              className="source-thumb-link"
+                                            >
+                                              <img 
+                                                src={source.thumbnail} 
+                                                alt={`Page ${source.page}`} 
+                                                className="source-thumbnail"
+                                                loading="lazy"
+                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                              />
+                                            </a>
+                                          )}
+                                          <p className="source-text">"{source.text}"</p>
+                                        </div>
                                       </div>
                                     ))}
                                   </motion.div>
