@@ -200,6 +200,7 @@
     padding: 8px 0;
     resize: none;
     max-height: 200px;
+    overflow-y: auto;
     outline: none;
     font-size: 0.9375rem;
 }
