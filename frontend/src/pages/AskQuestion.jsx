@@ -125,6 +125,7 @@ function AskQuestion({
   const [expandedSources, setExpandedSources] = useState({});
   const endOfChatRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     if (endOfChatRef.current) {
@@ -168,6 +169,14 @@ function AskQuestion({
     a.remove();
     URL.revokeObjectURL(url);
   };
+
+  // Auto-grow the textarea with its content (capped by CSS max-height)
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [question]);
 
   const toggleSources = (index) => {
     setExpandedSources(prev => ({
@@ -374,6 +383,7 @@ function AskQuestion({
           </div>
 
           <textarea
+            ref={textareaRef}
             rows="1"
             placeholder={
               documents.length === 0
