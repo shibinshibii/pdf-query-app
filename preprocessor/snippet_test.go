@@ -1,17 +1,254 @@
 package main
 
 import (
-	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// 1. Test Technical Task Sheet (Engineering / Spec Document)
-func TestBackendTaskSheetTechStack(t *testing.T) {
-	pdfPath := "/data/hobby/pdf-reviewer/backend/uploads/Backend_Developer_Task_Sheet.pdf"
+// Helper to construct a programmatic BBoxPage with realistic typography
+func createMockBBoxPage() *BBoxPage {
+	page := &BBoxPage{
+		Width:  612.0,
+		Height: 792.0,
+		Flows: []BBoxFlow{
+			{
+				Blocks: []BBoxBlock{
+					// [0] Document Title (Large font: 24pt)
+					{
+						XMin: 50.0, YMin: 40.0, XMax: 400.0, YMax: 68.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 50.0, YMin: 40.0, XMax: 400.0, YMax: 68.0,
+								Words: []BBoxWord{
+									{XMin: 50.0, YMin: 40.0, XMax: 150.0, YMax: 68.0, Text: "SYSTEM"},
+									{XMin: 160.0, YMin: 40.0, XMax: 400.0, YMax: 68.0, Text: "SPECIFICATION"},
+								},
+							},
+						},
+					},
+					// [1] Section 1 Heading (Heading font: 16pt)
+					{
+						XMin: 50.0, YMin: 90.0, XMax: 200.0, YMax: 108.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 50.0, YMin: 90.0, XMax: 200.0, YMax: 108.0,
+								Words: []BBoxWord{
+									{XMin: 50.0, YMin: 90.0, XMax: 70.0, YMax: 108.0, Text: "1."},
+									{XMin: 75.0, YMin: 90.0, XMax: 200.0, YMax: 108.0, Text: "Overview"},
+								},
+							},
+						},
+					},
+					// [2] Section 1 Body (Body font: 10pt)
+					{
+						XMin: 50.0, YMin: 115.0, XMax: 550.0, YMax: 145.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 50.0, YMin: 115.0, XMax: 550.0, YMax: 127.0,
+								Words: []BBoxWord{
+									{XMin: 50.0, YMin: 115.0, XMax: 120.0, YMax: 127.0, Text: "This"},
+									{XMin: 125.0, YMin: 115.0, XMax: 220.0, YMax: 127.0, Text: "document"},
+									{XMin: 225.0, YMin: 115.0, XMax: 300.0, YMax: 127.0, Text: "outlines"},
+									{XMin: 305.0, YMin: 115.0, XMax: 400.0, YMax: 127.0, Text: "the"},
+									{XMin: 405.0, YMin: 115.0, XMax: 550.0, YMax: 127.0, Text: "architecture."},
+								},
+							},
+						},
+					},
+					// [3] Section 2 Heading (Heading font: 16pt)
+					{
+						XMin: 50.0, YMin: 180.0, XMax: 250.0, YMax: 198.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 50.0, YMin: 180.0, XMax: 250.0, YMax: 198.0,
+								Words: []BBoxWord{
+									{XMin: 50.0, YMin: 180.0, XMax: 70.0, YMax: 198.0, Text: "2."},
+									{XMin: 75.0, YMin: 180.0, XMax: 140.0, YMax: 198.0, Text: "Tech"},
+									{XMin: 145.0, YMin: 180.0, XMax: 250.0, YMax: 198.0, Text: "Stack"},
+								},
+							},
+						},
+					},
+					// [4] Section 2 Bullet 1: Node.js (Body font: 10pt)
+					{
+						XMin: 70.0, YMin: 205.0, XMax: 300.0, YMax: 217.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 70.0, YMin: 205.0, XMax: 300.0, YMax: 217.0,
+								Words: []BBoxWord{
+									{XMin: 70.0, YMin: 205.0, XMax: 80.0, YMax: 217.0, Text: "●"},
+									{XMin: 85.0, YMin: 205.0, XMax: 160.0, YMax: 217.0, Text: "Node.js"},
+									{XMin: 165.0, YMin: 205.0, XMax: 210.0, YMax: 217.0, Text: "and"},
+									{XMin: 215.0, YMin: 205.0, XMax: 300.0, YMax: 217.0, Text: "Express"},
+								},
+							},
+						},
+					},
+					// [5] Section 2 Bullet 2: PostgreSQL (Body font: 10pt)
+					{
+						XMin: 70.0, YMin: 225.0, XMax: 350.0, YMax: 237.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 70.0, YMin: 225.0, XMax: 350.0, YMax: 237.0,
+								Words: []BBoxWord{
+									{XMin: 70.0, YMin: 225.0, XMax: 80.0, YMax: 237.0, Text: "●"},
+									{XMin: 85.0, YMin: 225.0, XMax: 180.0, YMax: 237.0, Text: "PostgreSQL"},
+									{XMin: 185.0, YMin: 225.0, XMax: 240.0, YMax: 237.0, Text: "with"},
+									{XMin: 245.0, YMin: 225.0, XMax: 310.0, YMax: 237.0, Text: "Prisma"},
+								},
+							},
+						},
+					},
+					// [6] Section 2 Bullet 3: FFmpeg (Body font: 10pt)
+					{
+						XMin: 70.0, YMin: 245.0, XMax: 320.0, YMax: 257.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 70.0, YMin: 245.0, XMax: 320.0, YMax: 257.0,
+								Words: []BBoxWord{
+									{XMin: 70.0, YMin: 245.0, XMax: 80.0, YMax: 257.0, Text: "●"},
+									{XMin: 85.0, YMin: 245.0, XMax: 150.0, YMax: 257.0, Text: "FFmpeg"},
+									{XMin: 155.0, YMin: 245.0, XMax: 210.0, YMax: 257.0, Text: "for"},
+									{XMin: 215.0, YMin: 245.0, XMax: 320.0, YMax: 257.0, Text: "processing"},
+								},
+							},
+						},
+					},
+					// [7] Section 3 Heading (Heading font: 16pt)
+					{
+						XMin: 50.0, YMin: 300.0, XMax: 250.0, YMax: 318.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 50.0, YMin: 300.0, XMax: 250.0, YMax: 318.0,
+								Words: []BBoxWord{
+									{XMin: 50.0, YMin: 300.0, XMax: 70.0, YMax: 318.0, Text: "3."},
+									{XMin: 75.0, YMin: 300.0, XMax: 250.0, YMax: 318.0, Text: "Deployment"},
+								},
+							},
+						},
+					},
+					// [8] Section 3 Body (Body font: 10pt)
+					{
+						XMin: 50.0, YMin: 325.0, XMax: 500.0, YMax: 337.0,
+						Lines: []BBoxLine{
+							{
+								XMin: 50.0, YMin: 325.0, XMax: 500.0, YMax: 337.0,
+								Words: []BBoxWord{
+									{XMin: 50.0, YMin: 325.0, XMax: 120.0, YMax: 337.0, Text: "Deploy"},
+									{XMin: 125.0, YMin: 325.0, XMax: 200.0, YMax: 337.0, Text: "using"},
+									{XMin: 205.0, YMin: 325.0, XMax: 280.0, YMax: 337.0, Text: "Docker"},
+									{XMin: 285.0, YMin: 325.0, XMax: 380.0, YMax: 337.0, Text: "Compose."},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return page
+}
+
+// 1. Portable Unit Test: Typographic Heading Classification
+func TestTypographicHeadingDetection(t *testing.T) {
+	page := createMockBBoxPage()
+	blocks := FlattenAndAnalyzeBlocks(page)
+
+	if len(blocks) != 9 {
+		t.Fatalf("Expected 9 blocks, got %d", len(blocks))
+	}
+
+	// [0] "SYSTEM SPECIFICATION" -> Title/Heading
+	if !blocks[0].IsHeading {
+		t.Errorf("Expected block 0 to be marked as heading")
+	}
+	// [1] "1. Overview" -> Heading
+	if !blocks[1].IsHeading {
+		t.Errorf("Expected block 1 (1. Overview) to be marked as heading")
+	}
+	// [2] Body text -> NOT Heading
+	if blocks[2].IsHeading {
+		t.Errorf("Expected block 2 (body) to NOT be marked as heading")
+	}
+	// [3] "2. Tech Stack" -> Heading
+	if !blocks[3].IsHeading {
+		t.Errorf("Expected block 3 (2. Tech Stack) to be marked as heading")
+	}
+	// [4-6] Bullets -> NOT Heading
+	if blocks[4].IsHeading || blocks[5].IsHeading || blocks[6].IsHeading {
+		t.Errorf("Expected bullet blocks 4-6 to NOT be marked as heading")
+	}
+	// [7] "3. Deployment" -> Heading
+	if !blocks[7].IsHeading {
+		t.Errorf("Expected block 7 (3. Deployment) to be marked as heading")
+	}
+}
+
+// 2. Portable Unit Test: Section Alignment and Upward Heading Pull
+func TestSectionAlignmentAndUpwardHeadingPull(t *testing.T) {
+	page := createMockBBoxPage()
+
+	query := "what is the tech stack used in the project?"
+	answer := "The project uses Node.js, PostgreSQL with Prisma, and FFmpeg for processing."
+	terms := []string{"Node.js", "PostgreSQL", "Prisma", "FFmpeg"}
+
+	x0, y0, x1, y1, found := FindTargetSection(page, query, answer, terms)
+	if !found {
+		t.Fatalf("Expected section to be found")
+	}
+
+	// Expected behavior:
+	// - Even though the answer matches bullets [4], [5], [6], the upward crawl MUST include heading [3] ("2. Tech Stack" at YMin=180.0)
+	// - The downward crawl MUST clamp cleanly before heading [7] ("3. Deployment" at YMin=300.0)
+	if y0 > 175.0 {
+		t.Errorf("Expected y0 to include '2. Tech Stack' (y0 <= 175), got y0=%.1f", y0)
+	}
+	if y1 > 300.0 {
+		t.Errorf("Expected y1 to clamp before '3. Deployment' (y1 <= 300), got y1=%.1f", y1)
+	}
+
+	// Width must cover the content comfortably
+	if (x1 - x0) < 300.0 {
+		t.Errorf("Expected crop width >= 300, got %.1f", x1-x0)
+	}
+}
+
+// 3. Portable Unit Test: Explicit Numbered Section Matching
+func TestNumberedSectionConstraint(t *testing.T) {
+	page := createMockBBoxPage()
+
+	query := "what is in Section 3?"
+	answer := "Section 3 covers deployment using Docker Compose."
+	terms := []string{"Deployment", "Docker", "Compose"}
+
+	_, y0, _, y1, found := FindTargetSection(page, query, answer, terms)
+	if !found {
+		t.Fatalf("Expected Section 3 to be found")
+	}
+
+	// Section 3 starts at YMin=300.0
+	if y0 < 280.0 || y0 > 305.0 {
+		t.Errorf("Expected Section 3 crop around y0 ~ 290-300, got y0=%.1f", y0)
+	}
+	if y1 < 330.0 {
+		t.Errorf("Expected crop to cover Section 3 body text, got y1=%.1f", y1)
+	}
+}
+
+// 4. Portable Integration Test: Real PDF in testdata/ (skipped if pdftotext is not installed)
+func TestRealPDFLayoutExtraction(t *testing.T) {
+	if _, err := exec.LookPath("pdftotext"); err != nil {
+		t.Skip("pdftotext not installed on this system; skipping real PDF test")
+	}
+
+	// Portable relative path inside preprocessor/
+	pdfPath := filepath.Join("testdata", "sample_task_sheet.pdf")
+
 	page, err := ExtractBBoxLayout(pdfPath, 1)
 	if err != nil {
-		t.Fatalf("Failed to extract layout: %v", err)
+		t.Fatalf("Failed to extract layout from %s: %v", pdfPath, err)
 	}
 
 	query := "what are the strict tech stack requirements?"
@@ -20,12 +257,10 @@ func TestBackendTaskSheetTechStack(t *testing.T) {
 
 	x0, y0, x1, y1, found := FindTargetSection(page, query, answer, terms)
 	if !found {
-		t.Fatalf("Expected section to be found")
+		t.Fatalf("Expected section to be found in %s", pdfPath)
 	}
 
-	fmt.Printf("[TestBackendTaskSheetTechStack] box=(%.1f, %.1f, %.1f, %.1f)\n", x0, y0, x1, y1)
-
-	// Verify that the crop area contains "Tech Stack"
+	// Verify that the crop area covers the Tech Stack heading
 	blocks := FlattenAndAnalyzeBlocks(page)
 	matched := false
 	for _, b := range blocks {
@@ -35,91 +270,6 @@ func TestBackendTaskSheetTechStack(t *testing.T) {
 		}
 	}
 	if !matched {
-		t.Errorf("Tech Stack was not found within the cropped bounding box")
-	}
-}
-
-// 2. Test Product Manual (OneDrive Getting Started Guide)
-func TestOneDriveCloudStorage(t *testing.T) {
-	pdfPath := "/data/hobby/pdf-reviewer/backend/uploads/Getting_started_with_OneDrive.pdf"
-	page, err := ExtractBBoxLayout(pdfPath, 2)
-	if err != nil {
-		t.Fatalf("Failed to extract layout: %v", err)
-	}
-
-	query := "how much free storage does OneDrive provide?"
-	answer := "OneDrive provides 5 GB of free storage, or you can upgrade to Microsoft 365 for 1 TB."
-	terms := []string{"5 GB", "Microsoft 365", "storage"}
-
-	x0, y0, x1, y1, found := FindTargetSection(page, query, answer, terms)
-	if !found {
-		t.Fatalf("Expected section to be found")
-	}
-
-	fmt.Printf("[TestOneDriveCloudStorage] box=(%.1f, %.1f, %.1f, %.1f)\n", x0, y0, x1, y1)
-
-	// Verify that the crop area contains "5 GB" and "Cloud storage"
-	blocks := FlattenAndAnalyzeBlocks(page)
-	matchedStorage := false
-	matchedHeading := false
-	for _, b := range blocks {
-		if b.YMin >= y0 && b.YMax <= y1 {
-			if strings.Contains(b.Text, "5 GB") {
-				matchedStorage = true
-			}
-			if strings.Contains(b.Text, "Cloud storage") {
-				matchedHeading = true
-			}
-		}
-	}
-	if !matchedStorage || !matchedHeading {
-		t.Errorf("Expected 'Cloud storage' and '5 GB' within crop, got storage=%v heading=%v", matchedStorage, matchedHeading)
-	}
-}
-
-// 3. Test Three User Queries on Shibin_P_Python_Developer.pdf
-func TestUserThreeQueries(t *testing.T) {
-	pdfPath := "/data/hobby/pdf-reviewer/backend/uploads/Shibin_P_Python_Developer.pdf"
-	page, err := ExtractBBoxLayout(pdfPath, 1)
-	if err != nil {
-		t.Fatalf("Failed to extract layout: %v", err)
-	}
-
-	// Query 1: University
-	q1 := "which university shibin graduated from"
-	a1 := "Calicut University"
-	_, y0_1, _, y1_1, found1 := FindTargetSection(page, q1, a1, []string{"Calicut University", "Calicut", "University"})
-	fmt.Printf("Q1 (University): found=%v, y=(%.1f - %.1f)\n", found1, y0_1, y1_1)
-
-	// Query 2: Experience
-	q2 := "how many years of experience he have?"
-	a2 := "Based on the provided context, Shibin P has 1.7 years of experience."
-	_, y0_2, _, y1_2, found2 := FindTargetSection(page, q2, a2, []string{"1.7 years", "experience"})
-	fmt.Printf("Q2 (Experience): found=%v, y=(%.1f - %.1f)\n", found2, y0_2, y1_2)
-
-	// Query 3: Skills
-	q3 := "what are the skills he have"
-	a3 := "Based on the provided context, Shibin P has the following skills: Programming Languages: Python, JavaScript, TypeScript, PHP, Golang, HTML, CSS Backend: Django, Django REST Framework, REST APIs, FastAPI, Laravel, Celery, JWT Data & AI: MySQL, PostgreSQL, Redis, LlamaIndex, RAG, Gemini API"
-	_, y0_3, _, y1_3, found3 := FindTargetSection(page, q3, a3, []string{"Programming Languages", "Python", "Django", "FastAPI"})
-	fmt.Printf("Q3 (Skills): found=%v, y=(%.1f - %.1f)\n", found3, y0_3, y1_3)
-
-	// Query 4: Projects
-	q4 := "what are the projects he done?"
-	a4 := "Based on the provided context, the projects he did are: drf-routes: DRF API Docs Tool, PDF Reviewer: FastAPI React LlamaIndex Gemini"
-	_, y0_4, _, y1_4, found4 := FindTargetSection(page, q4, a4, []string{"drf-routes", "PDF Reviewer", "projects"})
-	fmt.Printf("Q4 (Projects): found=%v, y=(%.1f - %.1f)\n", found4, y0_4, y1_4)
-
-	// Assertions
-	if y0_1 < 650.0 {
-		t.Errorf("Q1 (University) should target Education section (y > 650), got y0=%.1f", y0_1)
-	}
-	if y0_2 < 150.0 || y0_2 > 200.0 {
-		t.Errorf("Q2 (Experience) should target Professional Summary (y0 ~ 166), got y0=%.1f", y0_2)
-	}
-	if y0_3 < 240.0 || y0_3 > 270.0 {
-		t.Errorf("Q3 (Skills) should target Skills section (y0 ~ 255), got y0=%.1f", y0_3)
-	}
-	if y0_4 < 590.0 || y0_4 > 620.0 {
-		t.Errorf("Q4 (Projects) should target Projects section (y0 ~ 603), got y0=%.1f", y0_4)
+		t.Errorf("Tech Stack was not found within cropped box (%.1f, %.1f, %.1f, %.1f)", x0, y0, x1, y1)
 	}
 }

@@ -270,9 +270,10 @@ func FindTargetSection(page *BBoxPage, query string, answer string, terms []stri
 	// Numbered section constraint if explicitly requested in query (e.g. 'Step 3', 'Section 4', 'Task 2')
 	stepRe := regexp.MustCompile(`(?i)\b(step|section|chapter|part|task|clause|article|rule)\s+(\d+)\b`)
 	stepMatch := stepRe.FindStringSubmatch(query)
-	var requiredPattern *regexp.Regexp
+	var structuralRe *regexp.Regexp
 	if len(stepMatch) == 3 {
-		requiredPattern = regexp.MustCompile(fmt.Sprintf(`(?i)^\s*%s\s+%s\b`, regexp.QuoteMeta(stepMatch[1]), regexp.QuoteMeta(stepMatch[2])))
+		// Matches "Section 3", "Step 3", or "3." / "3 -"
+		structuralRe = regexp.MustCompile(fmt.Sprintf(`(?i)^\s*(%s\s+)?%s[\.\:\-\s]`, regexp.QuoteMeta(stepMatch[1]), regexp.QuoteMeta(stepMatch[2])))
 	}
 
 	// Document title / author question check
@@ -288,13 +289,9 @@ func FindTargetSection(page *BBoxPage, query string, answer string, terms []stri
 		score := 0.0
 		bTextLower := strings.ToLower(b.Text)
 
-		// 1. Structural entity constraint
-		if requiredPattern != nil {
-			if requiredPattern.MatchString(b.Text) {
-				score += 500.0
-			} else {
-				continue
-			}
+		// 1. Structural entity match bonus
+		if structuralRe != nil && structuralRe.MatchString(b.Text) {
+			score += 450.0
 		}
 
 		// 2. High-precision exact n-gram matching from Answer (strongest signal)

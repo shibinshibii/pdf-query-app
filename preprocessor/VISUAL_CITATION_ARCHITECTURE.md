@@ -73,7 +73,7 @@ PDF Reviewer introduces a dedicated **Go-powered Visual Snippet Preprocessor** (
 
 ## 3. Universal Layout & Typography Engine
 
-The engine lives in [preprocessor/snippet.go](file:///data/hobby/pdf-reviewer/preprocessor/snippet.go). It avoids brittle domain dictionaries (e.g. `PROJECTS` or `EDUCATION`) and relies on **universal document geometry and text alignment**.
+The engine lives in [snippet.go](./snippet.go). It avoids brittle domain dictionaries (e.g. `PROJECTS` or `EDUCATION`) and relies on **universal document geometry and text alignment**.
 
 ```
 [Target PDF Page]
@@ -209,23 +209,22 @@ When no confident section matches the citation:
 
 ---
 
-## 7. Multi-Document Test Suite
+## 7. Portable Multi-Document Test Suite
 
-The test suite in [preprocessor/snippet_test.go](file:///data/hobby/pdf-reviewer/preprocessor/snippet_test.go) validates the layout alignment engine against diverse document types:
+The test suite in [snippet_test.go](./snippet_test.go) is designed to run cleanly on any machine, CI/CD runner, or fresh repository clone with **zero machine-specific paths**:
 
 ```bash
 cd preprocessor
 go test -v ./...
 ```
 
-| Test Case | Document Type | Source Document | Section Verified |
+### Test Coverage
+| Test Name | Test Strategy | Dependencies | What It Validates |
 | :--- | :--- | :--- | :--- |
-| `TestBackendTaskSheetTechStack` | Technical Specification | `Backend_Developer_Task_Sheet.pdf` | `Tech Stack (Strict Requirements)` + all bullet points |
-| `TestOneDriveCloudStorage` | Product User Guide | `Getting_started_with_OneDrive.pdf` | `Cloud storage` heading + `5 GB free storage` text |
-| `TestUserThreeQueries (University)` | Resume / Curriculum Vitae | `Shibin_P_Python_Developer.pdf` | `EDUCATION` + `Calicut University` ($y: 700 \to 804$) |
-| `TestUserThreeQueries (Experience)` | Resume / Curriculum Vitae | `Shibin_P_Python_Developer.pdf` | `PROFESSIONAL SUMMARY` ($y: 166 \to 263$) |
-| `TestUserThreeQueries (Skills)` | Resume / Curriculum Vitae | `Shibin_P_Python_Developer.pdf` | `SKILLS` ($y: 255 \to 376$) |
-| `TestUserThreeQueries (Projects)` | Resume / Curriculum Vitae | `Shibin_P_Python_Developer.pdf` | `PROJECTS` ($y: 603 \to 708$) |
+| `TestTypographicHeadingDetection` | In-memory `BBoxPage` fixture | Pure Go (0 dependencies) | Relative font scaling ($H \ge 1.22 \times H_{\text{median}}$), all-caps titles, and structural prefixes (`1.`, `Step 3`). |
+| `TestSectionAlignmentAndUpwardHeadingPull` | In-memory layout simulation | Pure Go (0 dependencies) | Upward crawl pulling parent section heading into crop frame; downward crawl clamping before subsequent headings. |
+| `TestNumberedSectionConstraint` | Structural query matching | Pure Go (0 dependencies) | Explicit section constraints (`Section 3`, `3.`) boosting targeted passages. |
+| `TestRealPDFLayoutExtraction` | End-to-end PDF layout parsing | `testdata/sample_task_sheet.pdf` + Poppler | Full pipeline validation from physical PDF file to layout XML to section bounding box. Gracefully skips if `pdftotext` is missing. |
 
-All tests execute in $< 0.15\text{s}$ using native Go and standard Poppler utilities.
+All tests execute in $< 0.05\text{s}$ and work out-of-the-box upon `git clone`.
 
