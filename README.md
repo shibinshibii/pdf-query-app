@@ -4,10 +4,11 @@
 
 **Chat with your PDF documents with grounded answers and verifiable page citations.**
 
-Powered by **FastAPI**, **React 19**, **LlamaIndex**, and **Google Gemini 2.5 Flash**.
+Powered by **FastAPI**, **React 19**, **Qdrant Vector DB**, **LlamaIndex**, and **Google Gemini 2.5 Flash**.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-black?style=for-the-badge&logo=vercel)](https://pdf-query-app-delta.vercel.app/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Qdrant](https://img.shields.io/badge/Qdrant-Vector_DB-dc2626?style=for-the-badge&logo=qdrant&logoColor=white)](https://qdrant.tech/)
 [![React](https://img.shields.io/badge/React_19-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Google Gemini](https://img.shields.io/badge/Gemini_2.5_Flash-8E75C2?style=for-the-badge&logo=googlegemini&logoColor=white)](https://ai.google.dev/)
@@ -119,15 +120,16 @@ graph TD
 
 | Domain | Technology | Description |
 | :--- | :--- | :--- |
-| **Frontend** | React 19, Vite | Fast, responsive single-page application with progressive hydration |
+| **Frontend** | React 19, Vite | Collapsible sidebar, document tray, and progressive hydration |
 | **Styling & UI** | Framer Motion, Bootstrap 5, React Icons | Shimmer loading skeletons, smooth animations, visual feedback |
 | **Markdown** | React Markdown | Formatted rendering of AI answers |
 | **Backend** | FastAPI, Uvicorn | High-performance Python async web framework |
+| **Vector Database** | Qdrant (Rust) | Production-grade vector store with HNSW indexing, payload filtering, and strict chat isolation |
 | **Preprocessor Microservice** | Go 1.23, Poppler (`poppler-utils`) | Universal visual citation sub-crop engine, page thumbnails & SHA-256 deduplication |
 | **LLM & RAG** | LlamaIndex, Google Gemini API | `gemini-2.5-flash` (LLM) & `gemini-embedding-2` (Embeddings) |
 | **PDF Extraction** | PyMuPDF, pypdf | Fast PDF text parsing and page metadata extraction |
-| **Database** | SQLite, SQLAlchemy 2.0, Databases | Asynchronous database operations for document & chat history |
-| **Deployment** | Docker Compose | Multi-container setup (Backend, Go Preprocessor, Frontend) |
+| **Relational Database** | SQLite, SQLAlchemy 2.0 | Chat sessions, document registry, and conversation history |
+| **Deployment** | Docker Compose | Multi-container setup (Backend, Qdrant, Go Preprocessor, Frontend) |
 
 ---
 
@@ -135,11 +137,15 @@ graph TD
 
 | Method | Endpoint | Description | Request Body / Params |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/upload-pdf/` | Uploads and initiates background indexing | Multipart Form: `file` (.pdf) |
-| `POST` | `/ask/` | Queries the indexed PDF with RAG (returns instant answer + progressive citation URLs) | JSON: `{ filename, question, session_id }` |
-| `GET` | `/api/snippet/crop` | Proxies visual sub-rectangle citation cropping to Go microservice | Query: `filename`, `page`, `query`, `answer`, `terms` |
-| `GET` | `/history/{filename}` | Retrieves session chat history for a PDF | Query: `session_id` |
-| `DELETE` | `/history/{filename}` | Clears conversation history for a PDF | Query: `session_id` |
+| `POST` | `/api/chats/` | Creates a new chat conversation session | JSON: `{ title }` |
+| `GET` | `/api/chats/` | Lists all chat sessions with document counts | None |
+| `GET` | `/api/chats/{chat_id}` | Retrieves full chat details, attached documents, and message history | URL path param |
+| `PATCH` | `/api/chats/{chat_id}` | Renames a chat conversation | JSON: `{ title }` |
+| `DELETE` | `/api/chats/{chat_id}` | Deletes chat, cascading removal of records and vectors in Qdrant | URL path param |
+| `POST` | `/api/chats/{chat_id}/documents` | Attaches and indexes a PDF into Qdrant for this chat session | Multipart Form: `file` (.pdf) |
+| `DELETE` | `/api/chats/{chat_id}/documents/{doc_id}` | Removes a document and purges its vectors from Qdrant | URL path params |
+| `POST` | `/api/chats/{chat_id}/ask` | Queries all PDFs attached to this chat with strict Qdrant isolation | JSON: `{ question }` |
+| `GET` | `/api/snippet/crop` | Proxies visual sub-rectangle citation cropping to Go microservice | Query: `filename`, `page`, `query`, `terms`, `answer` |
 | `GET` | `/uploads/{filename}` | Serves the uploaded PDF file statically | URL path param |
 | `GET` | `/` | Health check endpoint | None |
 

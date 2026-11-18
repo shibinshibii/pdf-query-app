@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --no-deps "llama-index-vector-stores-qdrant==0.4.3" "qdrant-client==1.12.1" "portalocker==2.10.1"
 
 # Copy backend application
 COPY app/ ./app/

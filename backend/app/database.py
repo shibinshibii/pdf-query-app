@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from databases import Database  # Importing the Database class for async database operations
-from sqlalchemy import create_engine  # Importing create_engine to create a database engine
+from sqlalchemy import create_engine, text  # Importing create_engine to create a database engine
 from sqlalchemy.orm import sessionmaker  # Importing sessionmaker to create database sessions
 from .models import Base  # Importing the Base class from models to define database tables
 
@@ -32,3 +32,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def create_db():
     # Create all tables defined in the Base metadata
     Base.metadata.create_all(bind=engine)
+    # Ensure columns exist if tables were created with an earlier schema
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE chat_messages ADD COLUMN chat_id VARCHAR"))
+            conn.commit()
+        except Exception:
+            pass

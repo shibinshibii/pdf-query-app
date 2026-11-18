@@ -1,68 +1,24 @@
-import "../styles/navbar.css"; 
-import { useState, useRef, useEffect } from "react";
-import { AiOutlineClose } from "react-icons/ai";
-import { FiFile } from "react-icons/fi";
-import { AiOutlineUpload } from "react-icons/ai";
-import { RiEdit2Fill } from "react-icons/ri";
+import "../styles/navbar.css";
+import { useState, useRef } from "react";
+import { AiOutlineClose, AiOutlineUpload } from "react-icons/ai";
+import { FiFile, FiPlus } from "react-icons/fi";
 import { motion, AnimatePresence } from "framer-motion";
-import api, { API_BASE_URL } from "../api";
-import PreviewModal from "../components/PreviewModal";
 
-function NavBar({ setUploadedFileName }) {
+function NavBar({ documents = [], loading = false, onUploadFile, onRemoveFile, onPreviewFile }) {
   const fileInputRef = useRef(null);
-  const [fileName, setFileName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showConfirmRemove, setShowConfirmRemove] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-
-  useEffect(() => {
-    const savedFileName = localStorage.getItem("uploadedFileName");
-    if (savedFileName) {
-      setFileName(savedFileName);
-      setUploadedFileName(savedFileName);
-    }
-  }, [setUploadedFileName]);
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null);
 
   const handleButtonClick = () => {
-    if (!loading) {
+    if (!loading && fileInputRef.current) {
       fileInputRef.current.click();
     }
   };
 
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      setLoading(true);
-      const response = await api.post("/upload-pdf/", formData);
-      localStorage.setItem("uploadedFileName", response.data.filename);
-      setFileName(response.data.filename);
-      setUploadedFileName(response.data.filename);
-    } catch (error) {
-      console.error("Error uploading file:", error);
-      alert("Failed to upload file");
-      fileInputRef.current.value = null;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRemoveFile = () => {
-    setFileName("");
-    setUploadedFileName("");
-    fileInputRef.current.value = null;
-    localStorage.removeItem("uploadedFileName");
-    localStorage.removeItem(`chatHistory_${fileName}`);
-    setShowConfirmRemove(false);
-  };
-
-  const togglePreview = () => {
-    if (fileName) {
-      setShowPreview(!showPreview);
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      onUploadFile(file);
+      event.target.value = "";
     }
   };
 
@@ -70,11 +26,15 @@ function NavBar({ setUploadedFileName }) {
     <div style={{ position: "fixed", top: 0, left: 0, width: "100%", zIndex: 1000 }}>
       <nav className="navbar navbar-light glass custom-navbar">
         <div className="container">
-          <a className="navbar-brand d-flex align-items-center" href="#" style={{ fontWeight: 700, letterSpacing: "-0.5px" }}>
+          <a
+            className="navbar-brand d-flex align-items-center"
+            href="#"
+            style={{ fontWeight: 700, letterSpacing: "-0.5px" }}
+          >
             <span className="brand-logo">PDF</span>
             <span className="brand-text ms-1">Reviewer</span>
           </a>
-          
+
           <input
             type="file"
             accept="application/pdf"
@@ -82,79 +42,101 @@ function NavBar({ setUploadedFileName }) {
             ref={fileInputRef}
             onChange={handleFileChange}
           />
-          
-          <div className="ms-auto d-flex align-items-center">
-            {loading ? (
-              <div className="spinner-container me-3">
-                <div className="spinner" />
-              </div>
-            ) : fileName ? (
-              <div className="file-display d-flex align-items-center animate-fade-in">
-                <div className="file-info me-2 d-flex align-items-center">
-                  <FiFile className="me-1 text-primary d-none d-sm-inline" />
-                  <span 
-                    className="file-name-text preview-link" 
-                    onClick={togglePreview}
-                    title="Click to preview PDF"
-                  >
-                    {fileName}
-                  </span>
-                </div>
-                
-                <AnimatePresence mode="wait">
-                  {showConfirmRemove ? (
-                    <motion.div 
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.8, opacity: 0 }}
-                      className="confirm-badge"
-                    >
-                      <span className="me-2 fw-semibold">Remove?</span>
-                      <button onClick={handleRemoveFile} className="btn-yes">Yes</button>
-                      <span className="divider">|</span>
-                      <button onClick={() => setShowConfirmRemove(false)} className="btn-no">No</button>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.8, opacity: 0 }}
-                    >
-                      <AiOutlineClose
-                        onClick={() => setShowConfirmRemove(true)}
-                        className="remove-icon"
-                        title="Remove file"
+
+          <div className="ms-auto d-flex align-items-center gap-2">
+            {/* Attached Documents Chips */}
+            {documents.length > 0 && (
+              <div className="files-container me-2">
+                {documents.map((doc) => {
+                  const isConfirming = confirmRemoveId === doc.id;
+                  const docTitle = doc.original_name || doc.filename;
+
+                  return (
+                    <div key={doc.id || doc.filename} className="file-display animate-fade-in">
+                      <span
+                        className={`file-status-dot ${doc.status}`}
+                        title={doc.status === "ready" ? "Ready" : doc.status === "indexing" ? "Preparing..." : "Needs attention"}
                       />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                      <FiFile className="text-primary d-none d-sm-inline" />
+                      <span
+                        className="file-name-text preview-link"
+                        onClick={() => onPreviewFile(doc)}
+                        title={`Click to preview: ${docTitle}`}
+                      >
+                        {docTitle}
+                      </span>
+
+                      <AnimatePresence mode="wait">
+                        {isConfirming ? (
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                            className="confirm-badge ms-1"
+                          >
+                            <span className="fw-semibold me-1">Del?</span>
+                            <button
+                              onClick={() => {
+                                onRemoveFile(doc.id);
+                                setConfirmRemoveId(null);
+                              }}
+                              className="btn-yes"
+                            >
+                              Yes
+                            </button>
+                            <span className="divider">|</span>
+                            <button
+                              onClick={() => setConfirmRemoveId(null)}
+                              className="btn-no"
+                            >
+                              No
+                            </button>
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.8, opacity: 0 }}
+                          >
+                            <AiOutlineClose
+                              onClick={() => setConfirmRemoveId(doc.id)}
+                              className="remove-icon ms-1"
+                              title="Remove file"
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Upload Spinner or Button */}
+            {loading ? (
+              <div className="spinner-container me-2">
+                <div className="spinner" />
               </div>
             ) : null}
 
-            <button 
-              className={`upload-btn ${fileName ? 'btn-secondary' : 'btn-primary'}`} 
-              onClick={handleButtonClick} 
+            <button
+              className={`upload-btn ${documents.length > 0 ? "btn-secondary" : "btn-primary"}`}
+              onClick={handleButtonClick}
               disabled={loading}
+              title={documents.length > 0 ? "Attach another PDF to this chat" : "Upload a PDF"}
             >
               <span className="icon">
-                {fileName ? <RiEdit2Fill /> : <AiOutlineUpload />}
+                {documents.length > 0 ? <FiPlus /> : <AiOutlineUpload />}
               </span>
               <span className="text ms-2 d-none d-sm-inline">
-                {loading ? "Working..." : fileName ? "Change PDF" : "Upload PDF"}
+                {loading ? "Working..." : documents.length > 0 ? "Add PDF" : "Upload PDF"}
               </span>
             </button>
           </div>
         </div>
       </nav>
-
-      <PreviewModal 
-        isOpen={showPreview} 
-        onClose={() => setShowPreview(false)} 
-        fileUrl={`${API_BASE_URL}/uploads/${fileName}`}
-        fileName={fileName}
-      />
     </div>
   );
 }
 
-export default NavBar; // Export the NavBar component
+export default NavBar;

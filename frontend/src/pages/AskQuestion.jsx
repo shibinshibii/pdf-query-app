@@ -1,28 +1,15 @@
 import "../styles/askquestion.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FiSend, FiFileText, FiCpu, FiInfo, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { FiSend, FiFileText, FiChevronDown, FiChevronUp, FiUploadCloud } from "react-icons/fi";
 import React, { useState, useEffect, useRef } from "react";
 import { FaUserCircle, FaRobot, FaTrashAlt } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from 'react-markdown';
 import api, { API_BASE_URL } from "../api";
 
-// Simple Session ID generator (Guest Session)
-const getSessionId = () => {
-  let sessionId = localStorage.getItem("guest_session_id");
-  if (!sessionId) {
-    // Fallback to random string if crypto.randomUUID is not available
-    sessionId = typeof crypto.randomUUID === 'function' 
-      ? crypto.randomUUID() 
-      : Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    localStorage.setItem("guest_session_id", sessionId);
-  }
-  return sessionId;
-};
-
 // Visual Source Card with Progressive Hydration from Go Preprocessor
-const VisualSourceCard = ({ source, index }) => {
+const VisualSourceCard = ({ source, onPreviewDoc }) => {
   const [loading, setLoading] = useState(source.status === 'pending');
   const [snippetUrl, setSnippetUrl] = useState(source.snippet_url || null);
   const [status, setStatus] = useState(source.status || 'pending');
@@ -35,7 +22,7 @@ const VisualSourceCard = ({ source, index }) => {
         ? source.fetch_url 
         : `${API_BASE_URL}${source.fetch_url}`;
 
-      api.get(url, { timeout: 12000 })
+      api.get(url, { timeout: 15000 })
         .then(res => {
           if (!isMounted) return;
           if (res.data && res.data.status === 'ready' && res.data.snippet_url) {
@@ -66,13 +53,25 @@ const VisualSourceCard = ({ source, index }) => {
     ? (snippetUrl.startsWith('http') ? snippetUrl : `${API_BASE_URL}${snippetUrl}`)
     : null;
 
+  const docName = source.document || source.filename || "Document";
+
   return (
     <div className="source-item">
-      <div className="source-header">
-        <span className="source-page">Page {source.page}</span>
+      <div className="source-header d-flex align-items-center justify-content-between">
+        <div className="d-flex align-items-center gap-2">
+          <span 
+            className="source-doc-badge preview-link" 
+            onClick={() => onPreviewDoc && onPreviewDoc({ filename: source.filename, original_name: docName })}
+            title={`Preview ${docName}`}
+          >
+            <FiFileText /> {docName}
+          </span>
+          <span className="source-page">Page {source.page}</span>
+        </div>
+
         {loading ? (
           <span className="source-loading-badge">
-            <span className="source-pulse-dot"></span> Locating visual section (Go engine)...
+            <span className="source-pulse-dot"></span> Loading snapshot...
           </span>
         ) : resolvedUrl && !loadError ? (
           <span className="source-hint">Click image to enlarge</span>
@@ -91,12 +90,12 @@ const VisualSourceCard = ({ source, index }) => {
               href={resolvedUrl} 
               target="_blank" 
               rel="noopener noreferrer" 
-              title={`View full snapshot from Page ${source.page}`}
+              title={`View snapshot from ${docName} (Page ${source.page})`}
               className="source-snippet-link"
             >
               <img 
                 src={resolvedUrl} 
-                alt={`Referenced area from Page ${source.page}`} 
+                alt={`Referenced area from ${docName} Page ${source.page}`} 
                 className="source-snippet-img"
                 loading="lazy"
                 onError={() => setLoadError(true)}
@@ -111,40 +110,27 @@ const VisualSourceCard = ({ source, index }) => {
   );
 };
 
-function AskQuestion({ uploadedFileName }) {
+function AskQuestion({
+  chatId,
+  documents = [],
+  messages = [],
+  onUploadFile,
+  onSendMessage,
+  onClearChat,
+  onPreviewFile,
+  isAsking = false
+}) {
   const [question, setQuestion] = useState("");
-  const [chatHistory, setChatHistory] = useState([]);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [expandedSources, setExpandedSources] = useState({}); // Track which message sources are expanded
+  const [expandedSources, setExpandedSources] = useState({});
   const endOfChatRef = useRef(null);
-  const sessionId = getSessionId();
-  
-  // Load chat history from BACKEND
-  useEffect(() => {
-    const fetchHistory = async () => {
-      if (uploadedFileName) {
-        try {
-          const response = await api.get(`/history/${uploadedFileName}`, {
-            params: { session_id: sessionId }
-          });
-          setChatHistory(response.data);
-        } catch (error) {
-          console.error("Error loading chat history:", error);
-          toast.error("Failed to load chat history");
-        }
-      } else {
-        setChatHistory([]);
-      }
-    };
-    
-    fetchHistory();
-  }, [uploadedFileName, sessionId]);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (endOfChatRef.current) {
       endOfChatRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [chatHistory]);
+  }, [messages, isAsking]);
 
   const toggleSources = (index) => {
     setExpandedSources(prev => ({
@@ -153,252 +139,218 @@ function AskQuestion({ uploadedFileName }) {
     }));
   };
 
-  const handleAsk = async () => {
-    if (!question.trim()) return;
-    if (!uploadedFileName) {
+  const handleSend = () => {
+    if (!question.trim() || isAsking) return;
+    if (documents.length === 0) {
       toast.error("Please upload a PDF first");
       return;
     }
-
-    const currentQuestion = question;
+    const q = question;
     setQuestion("");
-
-    // Add user message to UI immediately
-    setChatHistory((prevHistory) => [
-      ...prevHistory,
-      { question: currentQuestion, answer: null, sources: [] },
-    ]);
-
-    try {
-      const response = await api.post("/ask/", { 
-        filename: uploadedFileName, 
-        question: currentQuestion,
-        session_id: sessionId
-      });
-      
-      setChatHistory((prevHistory) => {
-        const updatedHistory = [...prevHistory];
-        const lastIndex = updatedHistory.length - 1;
-        updatedHistory[lastIndex].answer = response.data.answer;
-        updatedHistory[lastIndex].sources = response.data.sources || [];
-        return updatedHistory;
-      });
-    } catch (error) {
-      console.error("Error asking question:", error);
-      const errorMsg = error.response?.data?.detail || "AI failed to respond";
-      toast.error(errorMsg);
-
-      setChatHistory((prevHistory) => {
-        const updatedHistory = [...prevHistory];
-        updatedHistory[updatedHistory.length - 1].answer = (
-          <span className="text-danger">Sorry, I encountered an error. Please try again.</span>
-        );
-        return updatedHistory;
-      });
-    }
+    onSendMessage(q);
   };
 
-  const handleClearChat = async () => {
-    try {
-      await api.delete(`/history/${uploadedFileName}`, {
-        params: { session_id: sessionId }
-      });
-      setChatHistory([]);
-      setShowClearConfirm(false);
-      toast.success("Chat history cleared");
-    } catch (error) {
-      console.error("Error clearing history:", error);
-      toast.error("Failed to clear history");
-    }
-  };
-
-  const handleKeyPress = (e) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleAsk();
+      handleSend();
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUploadFile(file);
+      e.target.value = "";
     }
   };
 
   return (
     <div className="ask-container">
+      <ToastContainer position="top-right" autoClose={3000} theme="colored" />
+
+      <input
+        type="file"
+        accept="application/pdf"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+      />
+
       <div className="chat-main">
-        <AnimatePresence mode="wait">
-          {!uploadedFileName ? (
-            <motion.div 
-              key="no-file"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="empty-state-card"
+        {documents.length === 0 ? (
+          <div className="empty-state-card animate-fade-in">
+            <div className="icon-circle">
+              <FiUploadCloud size={44} />
+            </div>
+            <h2>Chat with Your PDF Documents</h2>
+            <p>Upload your PDF files to ask questions and see exact page snapshots for every answer.</p>
+            <button
+              className="btn btn-primary mt-3 d-flex align-items-center gap-2 px-4 py-2"
+              onClick={() => fileInputRef.current?.click()}
             >
-              <div className="icon-circle">
-                <FiFileText size={40} />
-              </div>
-              <h2>Ready to analyze</h2>
-              <p>Upload a PDF document to start an interactive conversation with AI about its content.</p>
-            </motion.div>
-          ) : chatHistory.length === 0 ? (
-            <motion.div 
-              key="empty-chat"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="empty-state-card"
-            >
-              <div className="icon-circle ai">
-                <FiCpu size={40} />
-              </div>
-              <h2>PDF Indexed Successfully</h2>
-              <p>The document is ready. Ask me anything! For example: "What are the key takeaways?"</p>
-            </motion.div>
-          ) : (
-            <div className="messages-list">
-              {chatHistory.map((chat, index) => (
-                <div key={index} className="message-group">
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="message-row user"
-                  >
+              <FiUploadCloud />
+              <span>Upload PDF</span>
+            </button>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="empty-state-card animate-fade-in">
+            <div className="icon-circle ai">
+              <FaRobot size={44} />
+            </div>
+            <h2>Ready to Answer</h2>
+            <p>
+              I have <strong>{documents.length} document{documents.length > 1 ? "s" : ""}</strong> ready. Ask any question below!
+            </p>
+          </div>
+        ) : (
+          <div className="messages-list">
+            {messages.map((item, index) => {
+              const isSourcesExpanded = !!expandedSources[index];
+              return (
+                <div key={item.id || index} className="message-group animate-fade-in">
+                  {/* User Question */}
+                  <div className="message-row user">
                     <div className="bubble user">
-                      {chat.question}
+                      <p>{item.question}</p>
                     </div>
                     <div className="avatar user">
                       <FaUserCircle />
                     </div>
-                  </motion.div>
+                  </div>
 
-                  <motion.div 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.1 }}
-                    className="message-row ai"
-                  >
+                  {/* AI Answer */}
+                  <div className="message-row ai">
                     <div className="avatar ai">
                       <FaRobot />
                     </div>
                     <div className="bubble ai">
-                      {chat.answer === null ? (
-                        <div className="ai-loading">
-                          <span className="dot"></span>
-                          <span className="dot"></span>
-                          <span className="dot"></span>
+                      {item.answer ? (
+                        <div className="markdown-content">
+                          <ReactMarkdown>{item.answer}</ReactMarkdown>
                         </div>
                       ) : (
-                        <>
-                          <div className="ai-text">
-                            {typeof chat.answer === 'string' ? (
-                              <ReactMarkdown>{chat.answer}</ReactMarkdown>
-                            ) : (
-                              chat.answer
-                            )}
+                        <div className="ai-loading">
+                          <div className="dot"></div>
+                          <div className="dot"></div>
+                          <div className="dot"></div>
+                        </div>
+                      )}
+
+                      {/* Source Citations with Multi-Doc Attribution */}
+                      {item.sources && item.sources.length > 0 && (
+                        <div className="sources-container">
+                          <div
+                            className="sources-toggle"
+                            onClick={() => toggleSources(index)}
+                          >
+                            <div className="sources-title d-flex align-items-center gap-1">
+                              <FiFileText className="sources-icon" />
+                              <span>View Sources ({item.sources.length})</span>
+                            </div>
+                            {isSourcesExpanded ? <FiChevronUp /> : <FiChevronDown />}
                           </div>
-                          
-                          {(() => {
-                            const uniqueSources = (chat.sources || []).filter((source, idx, self) => 
-                              idx === self.findIndex((s) => (
-                                source.snippet_url 
-                                  ? s.snippet_url === source.snippet_url 
-                                  : (s.page === source.page && s.text === source.text)
-                              ))
-                            );
 
-                            if (uniqueSources.length === 0) return null;
-
-                            return (
-                              <div className="sources-container">
-                                <button 
-                                  className="sources-toggle"
-                                  onClick={() => toggleSources(index)}
-                                >
-                                  <FiInfo size={14} />
-                                  <span>{uniqueSources.length} Source{uniqueSources.length > 1 ? 's' : ''}</span>
-                                  {expandedSources[index] ? <FiChevronUp /> : <FiChevronDown />}
-                                </button>
-                                
-                                <AnimatePresence>
-                                  {expandedSources[index] && (
-                                    <motion.div 
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: 'auto', opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      className="sources-list"
-                                    >
-                                      {uniqueSources.map((source, sIdx) => (
-                                        <VisualSourceCard key={sIdx} source={source} index={sIdx} />
-                                      ))}
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </div>
-                            );
-                          })()}
-                        </>
+                          <AnimatePresence>
+                            {isSourcesExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="sources-content"
+                              >
+                                {item.sources.map((source, sIdx) => (
+                                  <VisualSourceCard
+                                    key={`${source.filename || source.document}_${source.page}_${sIdx}`}
+                                    source={source}
+                                    onPreviewDoc={onPreviewFile}
+                                  />
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
-              ))}
-              <div ref={endOfChatRef} />
-            </div>
-          )}
-        </AnimatePresence>
+              );
+            })}
+            <div ref={endOfChatRef} />
+          </div>
+        )}
       </div>
-      
+
+      {/* Floating Bottom Input Bar */}
       <div className="input-wrapper">
-        <div className="input-box glass">
-          <textarea
-            rows="1"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder={uploadedFileName ? "Message PDF Reviewer..." : "Upload a PDF to start chatting"}
-            disabled={!uploadedFileName}
-          />
-          
+        <div className="input-box">
+          {/* Clear Chat Confirmation or Button */}
           <div className="actions">
             <AnimatePresence mode="wait">
               {showClearConfirm ? (
-                <motion.div 
-                  key="confirm"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
                   className="clear-confirm-pill"
                 >
-                  <span onClick={handleClearChat} className="confirm-yes">Clear?</span>
-                  <span onClick={() => setShowClearConfirm(false)} className="confirm-no">No</span>
+                  <span>Clear?</span>
+                  <span
+                    className="confirm-yes"
+                    onClick={() => {
+                      onClearChat();
+                      setShowClearConfirm(false);
+                    }}
+                  >
+                    Yes
+                  </span>
+                  <span>|</span>
+                  <span
+                    className="confirm-no"
+                    onClick={() => setShowClearConfirm(false)}
+                  >
+                    No
+                  </span>
                 </motion.div>
               ) : (
-                <motion.button 
-                  key="trash"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="icon-btn delete" 
+                <button
+                  className="icon-btn delete"
+                  title="Clear conversation"
+                  disabled={messages.length === 0}
                   onClick={() => setShowClearConfirm(true)}
-                  disabled={chatHistory.length === 0}
-                  title="Clear Conversation"
                 >
                   <FaTrashAlt />
-                </motion.button>
+                </button>
               )}
             </AnimatePresence>
-            <button
-              className="send-btn-round"
-              onClick={handleAsk}
-              disabled={!uploadedFileName || !question.trim()}
-              title="Send Message"
-            >
-              <FiSend />
-            </button>
           </div>
+
+          <textarea
+            rows="1"
+            placeholder={
+              documents.length === 0
+                ? "Upload a PDF above to start chatting..."
+                : "Ask anything about your uploaded documents..."
+            }
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={isAsking || documents.length === 0}
+          />
+
+          <button
+            className="send-btn-round"
+            onClick={handleSend}
+            disabled={!question.trim() || isAsking || documents.length === 0}
+            title="Send Question"
+          >
+            <FiSend />
+          </button>
         </div>
       </div>
-
-      <ToastContainer theme="colored" position="bottom-right" autoClose={3000} />
     </div>
   );
 }
 
-export default AskQuestion;
+export default AskQuestion;
