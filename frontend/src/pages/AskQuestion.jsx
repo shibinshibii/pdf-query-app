@@ -110,6 +110,12 @@ const VisualSourceCard = ({ source, onPreviewDoc }) => {
   );
 };
 
+const STARTER_QUESTIONS = [
+  "Summarize this document",
+  "What are the key points?",
+  "List the main topics covered",
+];
+
 function AskQuestion({
   chatId,
   documents = [],
@@ -239,6 +245,19 @@ function AskQuestion({
             <p>
               I have <strong>{documents.length} document{documents.length > 1 ? "s" : ""}</strong> ready. Ask any question below!
             </p>
+            <div className="starter-chips">
+              {STARTER_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  className="starter-chip"
+                  disabled={isAsking}
+                  onClick={() => onSendMessage(q)}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="messages-list">
