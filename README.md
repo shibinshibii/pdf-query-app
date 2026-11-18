@@ -39,9 +39,11 @@ Instead of generic responses or hallucinations, the application uses **Retrieval
 ## ✨ Key Features
 
 - **⚡ Asynchronous Ingestion & Indexing**: PDF parsing and semantic embedding run in FastAPI background workers, keeping the UI instantaneous.
-- **🖼️ Go Microservice for Thumbnails**: Dedicated Go microservice generates scaled page thumbnails and SHA-256 deduplication hashes in parallel using Poppler and goroutines.
+- **🔍 Universal Visual Source Citations**: Instead of illegible whole-page thumbnails, a dedicated **Go Preprocessor microservice** performs layout analysis (`pdftotext -bbox-layout`) and relative font-height typography to locate the exact citation region, rendering a crisp **$180\text{ DPI}$ sub-rectangle crop** using Poppler's `pdftoppm`.
+- **🌊 Progressive Frontend Hydration**: AI answers return immediately with zero visual cropping lag; source cards progressively hydrate in the chat using a sleek shimmer skeleton while Go crops the image in the background.
+- **🖼️ Go Microservice for Processing**: Concurrently computes SHA-256 deduplication hashes, page thumbnails, and visual citation snippets with deterministic MD5 content-addressable caching.
 - **🧠 Semantic Vector Search**: Powered by `models/gemini-embedding-2` and LlamaIndex for high-accuracy similarity matching beyond keyword searches.
-- **📑 Source Citations & Attribution**: Every answer provides collapsible source cards showing the exact page number and text snippet retrieved.
+- **📑 Verifiable Attribution**: Every answer provides collapsible source cards showing the exact page number, text snippet, and the high-res visual snapshot from the document.
 - **👁️ Live PDF Previewer**: Built-in modal viewer allows side-by-side reading of the original document while chatting.
 - **💬 Persistent Guest Sessions**: Chat history is persisted per document and session in SQLite, allowing users to refresh or resume without losing context.
 - **🎨 Polished UI/UX**: Built with React 19, Framer Motion animations, Markdown rendering, and real-time Toast notifications.
@@ -55,13 +57,21 @@ graph TD
     subgraph Client ["Frontend (React 19 + Vite)"]
         UI["Upload & Chat Interface"]
         Viewer["PDF Viewer Modal"]
+        SourceCard["VisualSourceCard (Shimmer Skeleton -> Crop Image)"]
     end
 
     subgraph Server ["Backend (FastAPI)"]
         UploadEP["POST /upload-pdf/"]
         AskEP["POST /ask/"]
+        CropProxy["GET /api/snippet/crop"]
         HistoryEP["GET & DELETE /history/{filename}"]
         StaticFiles["/uploads (Static Serving)"]
+    end
+
+    subgraph Preprocessor ["Preprocessor Microservice (Go + Poppler)"]
+        PreprocessEP["POST /api/preprocess"]
+        CropEngine["GET /api/snippet/crop (Layout Parser & 180 DPI Crop)"]
+        ThumbStore[("preprocessor/thumbnails/")]
     end
 
     subgraph RAG ["AI & Vector Layer"]
@@ -81,6 +91,8 @@ graph TD
     UploadEP -->|Record doc| SQLite
     UploadEP -.->|Async Task| GeminiEmbed
     GeminiEmbed -->|Persist JSON vectors| IndexStore
+    UploadEP -.->|Trigger Preprocess| PreprocessEP
+    PreprocessEP -->|Page Thumbnails & Hashes| ThumbStore
 
     UI -->|2. Query PDF| AskEP
     AskEP -->|Load index| IndexStore
@@ -88,10 +100,18 @@ graph TD
     Llama -->|Prompt + Context| GeminiLLM
     GeminiLLM -->|Answer + Sources| AskEP
     AskEP -->|Log interaction| SQLite
-    AskEP -->|Response| UI
+    AskEP -->|Instant Answer + pending fetch_url| UI
+
+    SourceCard -->|3. Async Hydration Request| CropProxy
+    CropProxy -->|Forward query, answer, terms| CropEngine
+    CropEngine -->|Poppler pdftoppm 180 DPI sub-crop| ThumbStore
+    CropEngine -->|snippet_url| CropProxy
+    CropProxy -->|Hydrate with high-res crop| SourceCard
 
     Viewer -->|Load Stream| StaticFiles
 ```
+
+> 📖 **Deep-Dive Architecture Guide**: For complete details on the typography algorithms, relative font scaling ($H \ge 1.22 \times H_{\text{median}}$), upward/downward boundary crawling, and coordinate scaling, see **[preprocessor/VISUAL_CITATION_ARCHITECTURE.md](./preprocessor/VISUAL_CITATION_ARCHITECTURE.md)**.
 
 ---
 
@@ -99,15 +119,15 @@ graph TD
 
 | Domain | Technology | Description |
 | :--- | :--- | :--- |
-| **Frontend** | React 19, Vite | Fast, responsive single-page application |
-| **Styling & UI** | Framer Motion, Bootstrap 5, React Icons | Smooth animations, layout, and visual feedback |
+| **Frontend** | React 19, Vite | Fast, responsive single-page application with progressive hydration |
+| **Styling & UI** | Framer Motion, Bootstrap 5, React Icons | Shimmer loading skeletons, smooth animations, visual feedback |
 | **Markdown** | React Markdown | Formatted rendering of AI answers |
 | **Backend** | FastAPI, Uvicorn | High-performance Python async web framework |
-| **Preprocessor** | Go 1.23, Poppler | Concurrent page thumbnail generation & SHA-256 deduplication |
+| **Preprocessor Microservice** | Go 1.23, Poppler (`poppler-utils`) | Universal visual citation sub-crop engine, page thumbnails & SHA-256 deduplication |
 | **LLM & RAG** | LlamaIndex, Google Gemini API | `gemini-2.5-flash` (LLM) & `gemini-embedding-2` (Embeddings) |
 | **PDF Extraction** | PyMuPDF, pypdf | Fast PDF text parsing and page metadata extraction |
 | **Database** | SQLite, SQLAlchemy 2.0, Databases | Asynchronous database operations for document & chat history |
-| **Deployment** | Vercel (Frontend), Render (Backend) | Cloud-native hosting setup |
+| **Deployment** | Docker Compose | Multi-container setup (Backend, Go Preprocessor, Frontend) |
 
 ---
 
@@ -116,7 +136,8 @@ graph TD
 | Method | Endpoint | Description | Request Body / Params |
 | :--- | :--- | :--- | :--- |
 | `POST` | `/upload-pdf/` | Uploads and initiates background indexing | Multipart Form: `file` (.pdf) |
-| `POST` | `/ask/` | Queries the indexed PDF with RAG | JSON: `{ filename, question, session_id }` |
+| `POST` | `/ask/` | Queries the indexed PDF with RAG (returns instant answer + progressive citation URLs) | JSON: `{ filename, question, session_id }` |
+| `GET` | `/api/snippet/crop` | Proxies visual sub-rectangle citation cropping to Go microservice | Query: `filename`, `page`, `query`, `answer`, `terms` |
 | `GET` | `/history/{filename}` | Retrieves session chat history for a PDF | Query: `session_id` |
 | `DELETE` | `/history/{filename}` | Clears conversation history for a PDF | Query: `session_id` |
 | `GET` | `/uploads/{filename}` | Serves the uploaded PDF file statically | URL path param |
@@ -140,14 +161,15 @@ GOOGLE_API_KEY=AIzaSy...
 
 ### 2. Run with Docker Compose
 ```bash
-# Build and run backend and frontend
+# Build and run backend, preprocessor, and frontend
 docker compose up --build
 ```
 - **Frontend**: http://localhost:5173
 - **Backend API & Swagger Docs**: http://localhost:8000/docs
+- **Go Preprocessor & Health**: http://localhost:8001/health
 
 > [!NOTE]
-> Uploaded PDFs, generated vector indexes, and SQLite chat history are persisted in named Docker volumes (`backend_uploads`, `backend_indexes`, and `backend_data`).
+> Uploaded PDFs, generated vector indexes, page thumbnails, and SQLite chat history are persisted in named Docker volumes (`backend_uploads`, `backend_indexes`, `backend_data`, and `preprocessor_thumbnails`).
 
 ### 🛠️ Development Mode with Hot-Reloading
 If you are developing and want live code changes reflected instantly without rebuilding images:

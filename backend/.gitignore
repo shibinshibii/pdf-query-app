@@ -13,9 +13,10 @@ env/
 *.db
 pdf_documents.db
 
-# Uploads and Indexes
+# Uploads, Indexes, and Snippets
 uploads/
 indexes/
+snippets/
 
 # Logs
 *.log

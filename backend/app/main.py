@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse  # For JSON responses
 from fastapi.staticfiles import StaticFiles  # For serving static files
 from pydantic import BaseModel  # For request validation
 from .pdf_processing import create_index_for_pdf, extract_text_from_pdf, initialize_llm  # Custom PDF processing functions
+from .snippet_generator import generate_snippet_clip  # Visual area snapshot generator
 from .database import database, SessionLocal  # Database connection and session management
 from .models import PDFDocument, ChatMessage  # Database models
 from sqlalchemy.orm import Session  # SQLAlchemy session
@@ -35,9 +36,12 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
-# Mount the uploads directory to serve files
+# Mount the uploads and snippets directories to serve files
 os.makedirs("uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+os.makedirs("snippets", exist_ok=True)
+app.mount("/snippets", StaticFiles(directory="snippets"), name="snippets")
 
 # Import and initialize the database
 from .database import create_db
@@ -116,7 +120,7 @@ async def upload_pdf(file: UploadFile, background_tasks: BackgroundTasks):
 
 # Endpoint to ask a question based on a PDF file
 @app.post("/ask/")
-async def ask_question(request: AskRequest):
+def ask_question(request: AskRequest):
     # Sanitize the filename and check if the file exists
     sanitized_filename = sanitize_filename(request.filename)
     file_path = os.path.join("uploads", sanitized_filename)
@@ -149,23 +153,68 @@ async def ask_question(request: AskRequest):
         )
         query_engine = index.as_query_engine(
             streaming=False,
-            similarity_top_k=2,
+            similarity_top_k=4,
             text_qa_template=qa_prompt,
         )
         response = query_engine.query(request.question)
         
-        # Extract sources from the response
-        preprocessor_public_url = os.getenv("PREPROCESSOR_PUBLIC_URL", "http://localhost:8001")
+        # Extract salient terms for asynchronous layout-aware cropping in Go
+        ans_str = str(response)
+        
+        # 1. Quoted and bold terms from markdown answer
+        quoted_terms = re.findall(r'[\"\'\`\*]{1,2}([^\"\'\`\*]{3,40})[\"\'\`\*]{1,2}', ans_str)
+        # 2. Capitalized phrases & proper nouns (e.g. "Calicut University", "Qmentr", "FastAPI")
+        entity_phrases = re.findall(r'\b[A-Z][a-zA-Z0-9_\-\+]+(?:\s+[A-Z][a-zA-Z0-9_\-\+]+)*\b', ans_str)
+        # 3. Clean content words from answer and question
+        stop_words = {
+            'based', 'provided', 'context', 'following', 'these', 'this', 'that', 'with', 'from',
+            'have', 'been', 'were', 'what', 'when', 'where', 'which', 'about', 'also', 'some',
+            'shibin', 'developer', 'python', 'role', 'graduated'
+        }
+        ans_words = [w for w in re.sub(r'[^\w\s]', ' ', ans_str).split() if len(w) > 3 and w.lower() not in stop_words]
+        q_words = [w for w in re.sub(r'[^\w\s]', ' ', request.question).split() if len(w) > 3 and w.lower() not in stop_words]
+
+        combined_terms = []
+        for t in quoted_terms + entity_phrases + ans_words + q_words:
+            t_clean = t.strip()
+            if len(t_clean) >= 3 and t_clean.lower() not in stop_words and t_clean.lower() not in [x.lower() for x in combined_terms]:
+                combined_terms.append(t_clean)
+
+        terms_csv = ",".join(combined_terms[:12])
+
+        # Extract sources from the response for progressive hydration
         sources = []
+        seen_pages = set()
         for node in response.source_nodes:
-            page = node.node.metadata.get("page_label", "N/A")
-            source_item = {
-                "text": node.node.get_content()[:200] + "...",
-                "page": page
-            }
-            if page != "N/A":
-                source_item["thumbnail"] = f"{preprocessor_public_url}/thumbnails/{sanitized_filename}/page-{page}.png"
-            sources.append(source_item)
+            page = str(node.node.metadata.get("page_label", "N/A"))
+            content = node.node.get_content()
+
+            if page != "N/A" and page not in seen_pages:
+                seen_pages.add(page)
+                fetch_query = urllib.parse.urlencode({
+                    "filename": sanitized_filename,
+                    "page": page,
+                    "query": request.question,
+                    "terms": terms_csv,
+                    "answer": ans_str[:400]
+                })
+                sources.append({
+                    "page": page,
+                    "text": content[:200] + "...",
+                    "status": "pending",
+                    "snippet_url": None,
+                    "fetch_url": f"/api/snippet/crop?{fetch_query}"
+                })
+
+        # Graceful fallback: if no page label, include top node as text
+        if not sources and response.source_nodes:
+            top_node = response.source_nodes[0]
+            sources.append({
+                "text": top_node.node.get_content()[:200] + "...",
+                "page": str(top_node.node.metadata.get("page_label", "N/A")),
+                "status": "ready",
+                "snippet_url": None
+            })
 
         # Save the interaction to the database
         db: Session = SessionLocal()
@@ -192,9 +241,32 @@ async def ask_question(request: AskRequest):
     
     return {"answer": str(response), "sources": sources}
 
+# Proxy endpoint to call Go preprocessor's visual snippet crop engine
+@app.get("/api/snippet/crop")
+def proxy_snippet_crop(filename: str, page: str, query: str = "", terms: str = "", answer: str = ""):
+    preprocessor_url = os.getenv("PREPROCESSOR_URL", "http://localhost:8001")
+    params = urllib.parse.urlencode({
+        "filename": filename,
+        "page": page,
+        "query": query,
+        "terms": terms,
+        "answer": answer
+    })
+    url = f"{preprocessor_url}/api/snippet/crop?{params}"
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+            preprocessor_public = os.getenv("PREPROCESSOR_PUBLIC_URL", "http://localhost:8001")
+            if data.get("snippet_url") and data["snippet_url"].startswith("/thumbnails"):
+                data["snippet_url"] = f"{preprocessor_public}{data['snippet_url']}"
+            return data
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 # Endpoint to fetch chat history for a PDF and session
 @app.get("/history/{filename}")
-async def get_chat_history(filename: str, session_id: str):
+def get_chat_history(filename: str, session_id: str):
     sanitized_filename = sanitize_filename(filename)
     db: Session = SessionLocal()
     try:
@@ -220,7 +292,7 @@ async def get_chat_history(filename: str, session_id: str):
 
 # Endpoint to clear chat history
 @app.delete("/history/{filename}")
-async def clear_chat_history(filename: str, session_id: str):
+def clear_chat_history(filename: str, session_id: str):
     sanitized_filename = sanitize_filename(filename)
     db: Session = SessionLocal()
     try:

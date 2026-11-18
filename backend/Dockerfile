@@ -18,8 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend application
 COPY app/ ./app/
 
-# Ensure runtime directories for uploads, vector indexes, and SQLite data exist
-RUN mkdir -p uploads indexes data
+# Ensure runtime directories for uploads, vector indexes, SQLite data, and snippet clips exist
+RUN mkdir -p uploads indexes data snippets
 
 EXPOSE 8000
 

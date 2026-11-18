@@ -1,18 +1,31 @@
 # 🖼️ PDF Preprocessor Microservice (Go)
 
-High-performance PDF metadata extraction, deduplication, and page thumbnail rendering engine written in Go.
+High-performance PDF metadata extraction, deduplication, thumbnail rendering, and **universal visual citation cropping engine** written in Go.
 
 ## Features
-- **SHA-256 Checksum Calculation**: Fast deduplication to prevent re-processing identical files.
-- **Concurrent Thumbnail Rendering**: Scaled PNG/WebP page rendering powered by Poppler and Go worker pools.
-- **Fast Static Delivery**: Serves generated thumbnails with aggressive 24h browser caching headers.
-- **Ultra-lightweight**: Compiles to a ~25MB Alpine Linux container.
+- **🔍 Universal Visual Source Citations**: High-precision $180\text{ DPI}$ sub-rectangle cropping using Poppler `bbox-layout` and dynamic geometric/typographic analysis. Works on contracts, task sheets, research papers, and resumes with zero domain-specific keyword dictionaries.
+- **⚡ Progressive Hydration**: Serves visual snippets asynchronously to the frontend with deterministic MD5 content-addressable disk caching.
+- **🖼️ Concurrent Thumbnail Rendering**: Scaled page thumbnails and SHA-256 deduplication hashes generated in parallel using Go worker pools.
+- **🚀 Fast Static Delivery**: Serves generated thumbnails and snippets with aggressive browser caching headers.
+- **📦 Ultra-lightweight**: Compiles to a self-contained ~25MB Alpine Linux container with `poppler-utils`.
+
+## Full Architecture Documentation
+For deep-dive documentation into the layout alignment engine, relative font scaling, boundary crawling, and coordinate translation, see:
+👉 **[VISUAL_CITATION_ARCHITECTURE.md](./VISUAL_CITATION_ARCHITECTURE.md)**
 
 ## API Endpoints
 - `GET /health` — Health check
 - `POST /api/preprocess?filename=<filename>` — Generates thumbnails and metadata
 - `GET /api/metadata/<filename>` — Returns cached metadata JSON
-- `GET /thumbnails/<filename>/page-<number>.png` — Serves the specific page thumbnail
+- `GET /api/snippet/crop?filename=...&page=...&query=...&answer=...&terms=...` — Generates high-res visual citation snippet
+- `GET /thumbnails/<filename>/page-<number>.png` — Serves full-page thumbnail
+- `GET /thumbnails/<filename>/snippet_p<number>_<hash>.png` — Serves sub-rectangle visual citation snippet
+
+## Running Unit Tests
+```bash
+cd preprocessor
+go test -v ./...
+```
 
 ## Running Locally
 ```bash

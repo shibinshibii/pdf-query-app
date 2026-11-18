@@ -1,5 +1,6 @@
 # Import necessary modules and classes
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.llms.gemini import Gemini
 from llama_index.embeddings.gemini import GeminiEmbedding
 from llama_index.core.prompts import PromptTemplate
@@ -27,13 +28,19 @@ def create_index_for_pdf(file_path):
         raise Exception(f"Failed to load PDF: {str(e)}")
     
     try:
-        # Configure the embedding model using GeminiEmbedding
+        # Configure chunking and embedding model
+        node_parser = SentenceSplitter(
+            chunk_size=350,
+            chunk_overlap=40,
+            include_metadata=True,
+        )
+        Settings.node_parser = node_parser
         Settings.embed_model = GeminiEmbedding(
             model_name="models/gemini-embedding-2",  # Specify the model name
             api_key=os.getenv("GOOGLE_API_KEY")  # Retrieve API key from environment variables
         )
-        # Create a vector store index from the loaded documents
-        index = VectorStoreIndex.from_documents(documents)
+        # Create a vector store index from the loaded documents with granular chunks
+        index = VectorStoreIndex.from_documents(documents, transformations=[node_parser])
     except Exception as e:
         # Handle errors during index creation
         raise Exception(f"Failed to create index: {str(e)}")
@@ -75,13 +82,24 @@ def initialize_llm():
         )
         # Configure the Gemini LLM with specific parameters
         llm = Gemini(
-            model_name="models/gemini-2.5-flash",  # Specify the model name
+            model_name="models/gemini-flash-lite-latest",  # Fast response, high free tier quota
             api_key=os.getenv("GOOGLE_API_KEY"),  # Retrieve API key from environment variables
             temperature=0.5,  # Set the temperature for response variability
             max_tokens=256,  # Limit the maximum number of tokens in the response
         )
-        # Set the LLM and prompt template in the global settings
+        embed_model = GeminiEmbedding(
+            model_name="models/gemini-embedding-2",
+            api_key=os.getenv("GOOGLE_API_KEY"),
+        )
+        node_parser = SentenceSplitter(
+            chunk_size=350,
+            chunk_overlap=40,
+            include_metadata=True,
+        )
+        # Set the LLM, embedding model, node parser, and prompt template in the global settings
         Settings.llm = llm
+        Settings.embed_model = embed_model
+        Settings.node_parser = node_parser
         Settings.text_qa_template = qa_prompt
     except Exception as e:
         # Handle errors during LLM initialization

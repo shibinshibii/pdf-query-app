@@ -203,6 +203,89 @@ func main() {
 		_, _ = w.Write(data)
 	})
 
+	// Visual snippet cropping endpoint
+	mux.HandleFunc("GET /api/snippet/crop", func(w http.ResponseWriter, r *http.Request) {
+		filename := r.URL.Query().Get("filename")
+		pageStr := r.URL.Query().Get("page")
+		query := r.URL.Query().Get("query")
+		termsStr := r.URL.Query().Get("terms")
+
+		if filename == "" || pageStr == "" {
+			jsonResponse(w, http.StatusBadRequest, map[string]string{
+				"error": "filename and page parameters are required",
+			})
+			return
+		}
+
+		pageNum, err := strconv.Atoi(pageStr)
+		if err != nil || pageNum <= 0 {
+			pageNum = 1
+		}
+
+		pdfPath := filepath.Join(cfg.UploadsDir, filename)
+		if _, err := os.Stat(pdfPath); err != nil {
+			jsonResponse(w, http.StatusNotFound, map[string]string{
+				"error": fmt.Sprintf("PDF file not found in uploads: %s", filename),
+			})
+			return
+		}
+
+		// 1. Extract layout
+		pageLayout, err := ExtractBBoxLayout(pdfPath, pageNum)
+		if err != nil {
+			log.Printf("[ERROR] Layout extraction failed for %s p%d: %v", filename, pageNum, err)
+			jsonResponse(w, http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to extract layout: %v", err),
+			})
+			return
+		}
+
+		// 2. Parse query, answer, and search terms
+		answer := r.URL.Query().Get("answer")
+		var terms []string
+		if termsStr != "" {
+			for _, t := range strings.Split(termsStr, ",") {
+				if tr := strings.TrimSpace(t); tr != "" {
+					terms = append(terms, tr)
+				}
+			}
+		}
+
+		// 3. Find target section coordinates using universal layout alignment
+		x0, y0, x1, y1, found := FindTargetSection(pageLayout, query, answer, terms)
+		if !found {
+			jsonResponse(w, http.StatusOK, map[string]any{
+				"status":  "not_found",
+				"message": "No specific focused section matched",
+			})
+			return
+		}
+
+		// 4. Crop image with pdftoppm
+		snippetURL, err := CropPDFSnippet(pdfPath, cfg.ThumbnailsDir, filename, pageNum, x0, y0, x1, y1)
+		if err != nil {
+			log.Printf("[ERROR] Crop failed for %s p%d: %v", filename, pageNum, err)
+			jsonResponse(w, http.StatusInternalServerError, map[string]string{
+				"error": fmt.Sprintf("Failed to crop snippet: %v", err),
+			})
+			return
+		}
+
+		jsonResponse(w, http.StatusOK, map[string]any{
+			"status":      "ready",
+			"snippet_url": snippetURL,
+			"page":        pageNum,
+			"box": map[string]float64{
+				"x0":     x0,
+				"y0":     y0,
+				"x1":     x1,
+				"y1":     y1,
+				"width":  x1 - x0,
+				"height": y1 - y0,
+			},
+		})
+	})
+
 	// Thumbnail image serving endpoint
 	mux.HandleFunc("GET /thumbnails/{filename}/{pageFile}", func(w http.ResponseWriter, r *http.Request) {
 		filename := r.PathValue("filename")

@@ -16,6 +16,7 @@ services:
       - backend_uploads:/app/uploads
       - backend_indexes:/app/indexes
       - backend_data:/app/data
+      - backend_snippets:/app/snippets
     restart: unless-stopped
 
   preprocessor:
@@ -49,4 +50,5 @@ volumes:
   backend_uploads:
   backend_indexes:
   backend_data:
+  backend_snippets:
   preprocessor_thumbnails:

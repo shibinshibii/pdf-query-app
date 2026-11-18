@@ -8,6 +8,7 @@ env/
 .gitignore
 uploads/
 indexes/
+snippets/
 data/
 pdf_documents.db
 *.sqlite3

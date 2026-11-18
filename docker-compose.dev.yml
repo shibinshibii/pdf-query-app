@@ -17,6 +17,7 @@ services:
       - backend_uploads_dev:/app/uploads
       - backend_indexes_dev:/app/indexes
       - backend_data_dev:/app/data
+      - backend_snippets_dev:/app/snippets
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
 
@@ -54,4 +55,5 @@ volumes:
   backend_uploads_dev:
   backend_indexes_dev:
   backend_data_dev:
+  backend_snippets_dev:
   preprocessor_thumbnails_dev:

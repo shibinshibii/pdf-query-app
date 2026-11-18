@@ -6,7 +6,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { FaUserCircle, FaRobot, FaTrashAlt } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from 'react-markdown';
-import api from "../api";
+import api, { API_BASE_URL } from "../api";
 
 // Simple Session ID generator (Guest Session)
 const getSessionId = () => {
@@ -19,6 +19,96 @@ const getSessionId = () => {
     localStorage.setItem("guest_session_id", sessionId);
   }
   return sessionId;
+};
+
+// Visual Source Card with Progressive Hydration from Go Preprocessor
+const VisualSourceCard = ({ source, index }) => {
+  const [loading, setLoading] = useState(source.status === 'pending');
+  const [snippetUrl, setSnippetUrl] = useState(source.snippet_url || null);
+  const [status, setStatus] = useState(source.status || 'pending');
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    if (source.status === 'pending' && source.fetch_url && !snippetUrl) {
+      let isMounted = true;
+      const url = source.fetch_url.startsWith('http') 
+        ? source.fetch_url 
+        : `${API_BASE_URL}${source.fetch_url}`;
+
+      api.get(url, { timeout: 12000 })
+        .then(res => {
+          if (!isMounted) return;
+          if (res.data && res.data.status === 'ready' && res.data.snippet_url) {
+            setSnippetUrl(res.data.snippet_url);
+            setStatus('ready');
+            setLoading(false);
+          } else if (res.data && res.data.status === 'not_found') {
+            setStatus('not_found');
+            setLoading(false);
+          } else {
+            setLoading(false);
+          }
+        })
+        .catch(err => {
+          console.warn('[Go Snippet Hydration]', err);
+          if (isMounted) setLoading(false);
+        });
+
+      return () => { isMounted = false; };
+    }
+  }, [source.fetch_url, source.status, snippetUrl]);
+
+  if (status === 'not_found') {
+    return null;
+  }
+
+  const resolvedUrl = snippetUrl 
+    ? (snippetUrl.startsWith('http') ? snippetUrl : `${API_BASE_URL}${snippetUrl}`)
+    : null;
+
+  return (
+    <div className="source-item">
+      <div className="source-header">
+        <span className="source-page">Page {source.page}</span>
+        {loading ? (
+          <span className="source-loading-badge">
+            <span className="source-pulse-dot"></span> Locating visual section (Go engine)...
+          </span>
+        ) : resolvedUrl && !loadError ? (
+          <span className="source-hint">Click image to enlarge</span>
+        ) : null}
+      </div>
+
+      <div className="source-body">
+        {loading ? (
+          <div className="source-skeleton-container">
+            <div className="source-skeleton-bar shimmer"></div>
+            <div className="source-skeleton-bar short shimmer"></div>
+          </div>
+        ) : resolvedUrl && !loadError ? (
+          <div className="source-snippet-wrapper">
+            <a 
+              href={resolvedUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              title={`View full snapshot from Page ${source.page}`}
+              className="source-snippet-link"
+            >
+              <img 
+                src={resolvedUrl} 
+                alt={`Referenced area from Page ${source.page}`} 
+                className="source-snippet-img"
+                loading="lazy"
+                onError={() => setLoadError(true)}
+              />
+            </a>
+          </div>
+        ) : (
+          <p className="source-text">"{source.text}"</p>
+        )}
+      </div>
+    </div>
+  );
 };
 
 function AskQuestion({ uploadedFileName }) {
@@ -204,57 +294,45 @@ function AskQuestion({ uploadedFileName }) {
                             )}
                           </div>
                           
-                          {chat.sources && chat.sources.length > 0 && (
-                            <div className="sources-container">
-                              <button 
-                                className="sources-toggle"
-                                onClick={() => toggleSources(index)}
-                              >
-                                <FiInfo size={14} />
-                                <span>{chat.sources.length} Source{chat.sources.length > 1 ? 's' : ''}</span>
-                                {expandedSources[index] ? <FiChevronUp /> : <FiChevronDown />}
-                              </button>
-                              
-                              <AnimatePresence>
-                                {expandedSources[index] && (
-                                  <motion.div 
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: 'auto', opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    className="sources-list"
-                                  >
-                                    {chat.sources.map((source, sIdx) => (
-                                      <div key={sIdx} className="source-item">
-                                        <div className="source-header">
-                                          <span className="source-page">Page {source.page}</span>
-                                        </div>
-                                        <div className="source-body">
-                                          {source.thumbnail && (
-                                            <a 
-                                              href={source.thumbnail} 
-                                              target="_blank" 
-                                              rel="noopener noreferrer" 
-                                              title={`View Page ${source.page} Snapshot`}
-                                              className="source-thumb-link"
-                                            >
-                                              <img 
-                                                src={source.thumbnail} 
-                                                alt={`Page ${source.page}`} 
-                                                className="source-thumbnail"
-                                                loading="lazy"
-                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                              />
-                                            </a>
-                                          )}
-                                          <p className="source-text">"{source.text}"</p>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>
-                          )}
+                          {(() => {
+                            const uniqueSources = (chat.sources || []).filter((source, idx, self) => 
+                              idx === self.findIndex((s) => (
+                                source.snippet_url 
+                                  ? s.snippet_url === source.snippet_url 
+                                  : (s.page === source.page && s.text === source.text)
+                              ))
+                            );
+
+                            if (uniqueSources.length === 0) return null;
+
+                            return (
+                              <div className="sources-container">
+                                <button 
+                                  className="sources-toggle"
+                                  onClick={() => toggleSources(index)}
+                                >
+                                  <FiInfo size={14} />
+                                  <span>{uniqueSources.length} Source{uniqueSources.length > 1 ? 's' : ''}</span>
+                                  {expandedSources[index] ? <FiChevronUp /> : <FiChevronDown />}
+                                </button>
+                                
+                                <AnimatePresence>
+                                  {expandedSources[index] && (
+                                    <motion.div 
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="sources-list"
+                                    >
+                                      {uniqueSources.map((source, sIdx) => (
+                                        <VisualSourceCard key={sIdx} source={source} index={sIdx} />
+                                      ))}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            );
+                          })()}
                         </>
                       )}
                     </div>
