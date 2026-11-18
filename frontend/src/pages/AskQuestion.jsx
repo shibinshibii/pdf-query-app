@@ -1,12 +1,45 @@
 import "../styles/askquestion.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FiSend, FiFileText, FiChevronDown, FiChevronUp, FiUploadCloud } from "react-icons/fi";
+import { FiSend, FiFileText, FiChevronDown, FiChevronUp, FiUploadCloud, FiCopy, FiCheck } from "react-icons/fi";
 import React, { useState, useEffect, useRef } from "react";
 import { FaUserCircle, FaRobot, FaTrashAlt } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from 'react-markdown';
 import api, { API_BASE_URL } from "../api";
+
+// Copies an AI answer (markdown text) to the clipboard and shows the result for 2 seconds
+const CopyAnswerButton = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+  const resetTimer = useRef(null);
+
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      toast.error("Could not copy to the clipboard");
+      return;
+    }
+    setCopied(true);
+    toast.success("Copied to clipboard!");
+    clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      type="button"
+      className={`copy-answer-btn${copied ? " copied" : ""}`}
+      onClick={handleCopy}
+      aria-label={copied ? "Copied to clipboard" : "Copy answer to clipboard"}
+      title={copied ? "Copied to clipboard!" : "Copy answer"}
+    >
+      {copied ? <FiCheck /> : <FiCopy />}
+    </button>
+  );
+};
 
 // Visual Source Card with Progressive Hydration from Go Preprocessor
 const VisualSourceCard = ({ source, onPreviewDoc }) => {
@@ -225,6 +258,7 @@ function AskQuestion({
                       <FaRobot />
                     </div>
                     <div className="bubble ai">
+                      {item.answer && <CopyAnswerButton text={item.answer} />}
                       {item.answer ? (
                         <div className="markdown-content">
                           <ReactMarkdown>{item.answer}</ReactMarkdown>

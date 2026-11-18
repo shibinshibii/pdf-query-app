@@ -128,10 +128,42 @@
 }
 
 .bubble.ai {
+    position: relative;
     background: var(--bg-card);
     color: var(--text-main);
     border: 1px solid var(--border-color);
     border-bottom-left-radius: 4px;
+}
+
+.copy-answer-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted, #6b7280);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.copy-answer-btn:hover,
+.copy-answer-btn:focus-visible {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-main);
+}
+
+.copy-answer-btn.copied {
+    color: #10b981;
+}
+
+.bubble.ai .markdown-content {
+    padding-right: 28px;
 }
 
 .bubble.ai p {
