@@ -1,7 +1,7 @@
 import "../styles/askquestion.css";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { FiSend, FiFileText, FiChevronDown, FiChevronUp, FiUploadCloud } from "react-icons/fi";
+import { FiSend, FiFileText, FiChevronDown, FiChevronUp, FiUploadCloud, FiDownload } from "react-icons/fi";
 import React, { useState, useEffect, useRef } from "react";
 import { FaUserCircle, FaRobot, FaTrashAlt } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
@@ -131,6 +131,43 @@ function AskQuestion({
       endOfChatRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isAsking]);
+
+  const handleExportChat = () => {
+    const answered = messages.filter((m) => m.question);
+    const lines = [
+      "# Chat Export",
+      "",
+      `Exported: ${new Date().toLocaleString()}`,
+      ""
+    ];
+    if (documents.length > 0) {
+      lines.push(
+        `Documents: ${documents.map((d) => d.original_name || d.filename).join(", ")}`,
+        ""
+      );
+    }
+    answered.forEach((m, i) => {
+      lines.push(`### Question ${i + 1}`, "", m.question, "");
+      lines.push("### Answer", "", m.answer || "_No answer._", "");
+      if (m.sources && m.sources.length > 0) {
+        lines.push("**Sources:**", "");
+        m.sources.forEach((s) => {
+          lines.push(`- ${s.document || s.filename || "Document"}, page ${s.page}`);
+        });
+        lines.push("");
+      }
+      lines.push("---", "");
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chat-${chatId || "session"}-export.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const toggleSources = (index) => {
     setExpandedSources(prev => ({
@@ -314,6 +351,15 @@ function AskQuestion({
                   </span>
                 </motion.div>
               ) : (
+                <>
+                <button
+                  className="icon-btn export"
+                  title="Export conversation to Markdown"
+                  disabled={messages.length === 0}
+                  onClick={handleExportChat}
+                >
+                  <FiDownload />
+                </button>
                 <button
                   className="icon-btn delete"
                   title="Clear conversation"
@@ -322,6 +368,7 @@ function AskQuestion({
                 >
                   <FaTrashAlt />
                 </button>
+                </>
               )}
             </AnimatePresence>
           </div>
